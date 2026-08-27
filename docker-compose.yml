@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: autopartes-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-autopartes}
+      POSTGRES_USER: ${POSTGRES_USER:-autopartes}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-autopartes_dev}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - autopartes_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-autopartes} -d ${POSTGRES_DB:-autopartes}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  autopartes_pgdata:
