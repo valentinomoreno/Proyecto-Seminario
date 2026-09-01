@@ -11,3 +11,6 @@ frontend/.env
 Thumbs.db
 backend/uploads/
 uploads/
+*.md
+.agents/
+.claude/
