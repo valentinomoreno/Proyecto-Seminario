@@ -2,6 +2,7 @@ import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 
 export function createTypeOrmOptions(config: ConfigService): TypeOrmModuleOptions {
+  const isProduction = config.get<string>('NODE_ENV') === 'production';
   return {
     type: 'postgres',
     host: config.get<string>('DB_HOST', 'localhost'),
@@ -10,7 +11,8 @@ export function createTypeOrmOptions(config: ConfigService): TypeOrmModuleOption
     password: config.get<string>('DB_PASSWORD', 'autopartes_dev'),
     database: config.get<string>('DB_NAME', 'autopartes'),
     autoLoadEntities: true,
-    synchronize: config.get<string>('DB_SYNC', 'false') === 'true',
+    synchronize: false,
     logging: config.get<string>('DB_LOGGING', 'false') === 'true',
+    ...(isProduction ? { ssl: { rejectUnauthorized: true } } : {}),
   };
 }
