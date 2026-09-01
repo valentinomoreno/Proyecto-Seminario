@@ -127,7 +127,6 @@ export function AppLayout() {
               <i className="ti ti-menu-2" />
             </button>
             <div className="header-title-block d-none d-md-block">
-              <span className="text-muted small text-uppercase fw-bold">Seminario Integrador · UTN</span>
               <h5 className="mb-0 fw-bold">Sistema de Repuestos</h5>
             </div>
           </div>
@@ -164,19 +163,6 @@ export function AppLayout() {
           <Outlet />
         </div>
       </div>
-
-      {/* FOOTER DE DATTA ABLE */}
-      <footer className="pc-footer">
-        <div className="footer-wrapper container-fluid">
-          <div className="row">
-            <div className="col my-1">
-              <p className="m-0 text-muted">
-                Autopartes Management System · Seminario Integrador UTN &copy; 2026
-              </p>
-            </div>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

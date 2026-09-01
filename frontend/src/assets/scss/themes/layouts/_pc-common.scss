@@ -47,17 +47,21 @@
   }
 
   .page-header-title {
-    display: inline-block;
-  }
+    display: block;
+    margin-bottom: 4px;
 
-  h5 {
-    margin-bottom: 0;
-    font-weight: 500;
+    h4,
+    h5 {
+      margin-bottom: 0;
+      font-weight: 600;
+    }
   }
 
   .breadcrumb {
     padding: 0;
-    display: inline-flex;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     background: transparent;
     font-size: 13px;
 

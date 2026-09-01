@@ -192,7 +192,7 @@ export function FormProductoPage() {
           <div className="row align-items-center">
             <div className="col-md-8">
               <div className="page-header-title">
-                <h4 className="m-b-10 fw-bold">
+                <h4 className="mb-1 fw-bold">
                   {editando ? 'Editar Repuesto' : 'Nuevo Repuesto'}
                   {editando && codigoActual && (
                     <span className="badge bg-light-primary text-primary font-monospace ms-2 fs-6">

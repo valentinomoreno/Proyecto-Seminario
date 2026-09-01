@@ -62,7 +62,7 @@ export function CatalogoPage() {
           <div className="row align-items-center">
             <div className="col-md-8">
               <div className="page-header-title">
-                <h4 className="m-b-10 fw-bold">Catálogo de Repuestos</h4>
+                <h4 className="mb-1 fw-bold">Catálogo de Repuestos</h4>
               </div>
               <ul className="breadcrumb m-0 bg-transparent p-0 small">
                 <li className="breadcrumb-item text-muted">Inventario</li>
