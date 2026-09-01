@@ -4,11 +4,6 @@ import { IsInt, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString, MaxLengt
 export class CreateProductoDto {
   @IsString()
   @IsNotEmpty()
-  @MaxLength(50)
-  sku: string;
-
-  @IsString()
-  @IsNotEmpty()
   @MaxLength(120)
   nombre: string;
 
@@ -26,9 +21,9 @@ export class CreateProductoDto {
   precioUnitario: number;
 
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  costo?: number | null;
+  @IsString()
+  @MaxLength(255)
+  imagenUrl?: string | null;
 
   @IsInt()
   @IsPositive()
@@ -44,12 +39,11 @@ export class CreateProductoDto {
 }
 
 export class UpdateProductoDto {
-  @IsOptional() @IsString() @IsNotEmpty() @MaxLength(50) sku?: string;
   @IsOptional() @IsString() @IsNotEmpty() @MaxLength(120) nombre?: string;
   @IsOptional() @IsString() @IsNotEmpty() @MaxLength(2000) descripcion?: string;
   @IsOptional() @IsInt() @Min(0) stock?: number;
   @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @IsPositive() precioUnitario?: number;
-  @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) costo?: number | null;
+  @IsOptional() @IsString() @MaxLength(255) imagenUrl?: string | null;
   @IsOptional() @IsInt() @IsPositive() categoriaId?: number;
   @IsOptional() @IsInt() @IsPositive() marcaId?: number;
   @IsOptional() @IsInt() @IsPositive() estanteId?: number;

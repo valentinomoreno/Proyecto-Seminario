@@ -25,66 +25,92 @@ async function restoreOrCreate<T extends ObjectLiteral>(
   return repository.save(record);
 }
 
-function validateSeedPassword(password: string): void {
+function validateSeedPassword(password: string, envVarName: string): void {
   if (password.length < 8) {
-    throw new Error('SEED_ADMIN_PASSWORD debe tener al menos 8 caracteres.');
+    throw new Error(`${envVarName} debe tener al menos 8 caracteres.`);
   }
   if (!/[A-Z]/.test(password)) {
-    throw new Error('SEED_ADMIN_PASSWORD debe incluir al menos una letra mayúscula.');
+    throw new Error(`${envVarName} debe incluir al menos una letra mayúscula.`);
   }
   if (!/[a-z]/.test(password)) {
-    throw new Error('SEED_ADMIN_PASSWORD debe incluir al menos una letra minúscula.');
+    throw new Error(`${envVarName} debe incluir al menos una letra minúscula.`);
   }
   if (!/[0-9]/.test(password)) {
-    throw new Error('SEED_ADMIN_PASSWORD debe incluir al menos un número.');
+    throw new Error(`${envVarName} debe incluir al menos un número.`);
   }
   if (!/[^A-Za-z0-9]/.test(password)) {
-    throw new Error('SEED_ADMIN_PASSWORD debe incluir al menos un carácter especial.');
+    throw new Error(`${envVarName} debe incluir al menos un carácter especial.`);
   }
 }
 
 async function seed(): Promise<void> {
-  const username = process.env.SEED_ADMIN_USERNAME;
-  const password = process.env.SEED_ADMIN_PASSWORD;
-  if (!username || !password) {
-    throw new Error('Defina SEED_ADMIN_USERNAME y SEED_ADMIN_PASSWORD antes de ejecutar el seed.');
-  }
+  const adminUsername = process.env.SEED_ADMIN_USERNAME || 'admin';
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD || 'Admin_Seguro.2026!';
+  const ventaUsername = process.env.SEED_VENTA_USERNAME || 'vendedor';
+  const ventaPassword = process.env.SEED_VENTA_PASSWORD || 'Vendedor_Seguro.2026!';
 
-  validateSeedPassword(password);
+  validateSeedPassword(adminPassword, 'SEED_ADMIN_PASSWORD');
+  validateSeedPassword(ventaPassword, 'SEED_VENTA_PASSWORD');
 
   await AppDataSource.initialize();
   await AppDataSource.transaction(async (manager) => {
+    await manager.query('CREATE SEQUENCE IF NOT EXISTS "producto_codigo_seq" START WITH 1 INCREMENT BY 1');
+
     const adminRol = await restoreOrCreate(manager, Rol, { nombre: NombreRol.ADMINISTRADOR }, {
       nombre: NombreRol.ADMINISTRADOR,
       descripcion: 'Acceso completo a la administración del sistema.',
     });
-    await restoreOrCreate(manager, Rol, { nombre: NombreRol.EMPLEADO_VENTA }, {
+    const ventaRol = await restoreOrCreate(manager, Rol, { nombre: NombreRol.EMPLEADO_VENTA }, {
       nombre: NombreRol.EMPLEADO_VENTA,
       descripcion: 'Acceso operativo al catálogo y las ventas.',
     });
 
-    const persona = await restoreOrCreate(manager, Persona, { dni: '00000000' }, {
+    // 1. Usuario Administrador
+    const personaAdmin = await restoreOrCreate(manager, Persona, { dni: '00000000' }, {
       nombre: 'Administrador',
       apellido: 'Sistema',
       dni: '00000000',
       cuil: '20000000001',
     });
-    const empleado = await restoreOrCreate(manager, Empleado, { legajo: 'ADMIN-001' }, {
+    const empleadoAdmin = await restoreOrCreate(manager, Empleado, { legajo: 'ADMIN-001' }, {
       legajo: 'ADMIN-001',
       activo: true,
-      persona,
+      persona: personaAdmin,
     });
 
     const usuarioRepository = manager.getRepository(Usuario);
-    const existingUser = await usuarioRepository.findOne({ where: { nombre: username } });
-    const usuario = existingUser ?? usuarioRepository.create();
-    usuario.nombre = username.trim();
-    usuario.contrasenaHash = await bcrypt.hash(password, 12);
-    usuario.activo = true;
-    usuario.rol = adminRol;
-    usuario.empleado = empleado;
-    await usuarioRepository.save(usuario);
+    const existingAdmin = await usuarioRepository.findOne({ where: { nombre: adminUsername } });
+    const usuarioAdmin = existingAdmin ?? usuarioRepository.create();
+    usuarioAdmin.nombre = adminUsername.trim();
+    usuarioAdmin.contrasenaHash = await bcrypt.hash(adminPassword, 12);
+    usuarioAdmin.activo = true;
+    usuarioAdmin.rol = adminRol;
+    usuarioAdmin.empleado = empleadoAdmin;
+    await usuarioRepository.save(usuarioAdmin);
 
+    // 2. Usuario Vendedor (EMPLEADO_VENTA)
+    const personaVenta = await restoreOrCreate(manager, Persona, { dni: '00000002' }, {
+      nombre: 'Vendedor',
+      apellido: 'Mostrador',
+      dni: '00000002',
+      cuil: '20000000002',
+    });
+    const empleadoVenta = await restoreOrCreate(manager, Empleado, { legajo: 'VENTA-001' }, {
+      legajo: 'VENTA-001',
+      activo: true,
+      persona: personaVenta,
+    });
+
+    const existingVenta = await usuarioRepository.findOne({ where: { nombre: ventaUsername } });
+    const usuarioVenta = existingVenta ?? usuarioRepository.create();
+    usuarioVenta.nombre = ventaUsername.trim();
+    usuarioVenta.contrasenaHash = await bcrypt.hash(ventaPassword, 12);
+    usuarioVenta.activo = true;
+    usuarioVenta.rol = ventaRol;
+    usuarioVenta.empleado = empleadoVenta;
+    await usuarioRepository.save(usuarioVenta);
+
+    // 3. Catálogo base
     for (const categoria of [
       { nombre: 'Motor', descripcion: 'Repuestos y componentes del motor.' },
       { nombre: 'Frenos', descripcion: 'Componentes del sistema de frenado.' },
@@ -116,7 +142,7 @@ async function seed(): Promise<void> {
     }
   });
   await AppDataSource.destroy();
-  console.info('Seed inicial completado.');
+  console.info('Seed inicial completado con usuarios Administrador y Vendedor.');
 }
 
 seed().catch(async (error: unknown) => {

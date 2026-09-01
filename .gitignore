@@ -9,3 +9,5 @@ backend/.env
 frontend/.env
 .DS_Store
 Thumbs.db
+backend/uploads/
+uploads/

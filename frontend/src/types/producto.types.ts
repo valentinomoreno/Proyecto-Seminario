@@ -35,7 +35,7 @@ export interface Producto {
   descripcion: string;
   stock: number;
   precioUnitario: number;
-  costo: number | null;
+  imagenUrl?: string | null;
   categoria: Categoria;
   marca: Marca;
   ubicacion: {
@@ -51,12 +51,11 @@ export interface PaginatedResponse<T> {
 }
 
 export interface ProductoPayload {
-  sku: string;
   nombre: string;
   descripcion: string;
   stock: number;
   precioUnitario: number;
-  costo: number | null;
+  imagenUrl?: string | null;
   categoriaId: number;
   marcaId: number;
   estanteId: number;

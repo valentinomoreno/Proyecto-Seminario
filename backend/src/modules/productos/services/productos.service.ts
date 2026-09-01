@@ -27,7 +27,7 @@ export class ProductosService {
       .leftJoinAndSelect('producto.estante', 'estante')
       .leftJoinAndSelect('estante.sector', 'sector')
       .leftJoinAndSelect('sector.deposito', 'deposito')
-      .orderBy('producto.nombre', 'ASC')
+      .orderBy('producto.idProducto', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
 
@@ -77,15 +77,24 @@ export class ProductosService {
     return { categoria, marca, estante };
   }
 
+  private async generateNextSku(): Promise<string> {
+    const result = await this.repository.query<Array<{ nextval: string }>>(
+      "SELECT nextval('producto_codigo_seq') AS nextval",
+    );
+    const seq = result[0]?.nextval ?? 1;
+    return `PROD-${String(seq).padStart(5, '0')}`;
+  }
+
   async create(dto: CreateProductoDto) {
     const references = await this.findReferences(dto.categoriaId, dto.marcaId, dto.estanteId);
+    const sku = await this.generateNextSku();
     const producto = this.repository.create({
-      sku: dto.sku.trim().toUpperCase(),
+      sku,
       nombre: dto.nombre.trim(),
       descripcion: dto.descripcion.trim(),
       stock: dto.stock,
       precioUnitario: dto.precioUnitario,
-      costo: dto.costo ?? null,
+      imagenUrl: dto.imagenUrl?.trim() || null,
       ...references,
     });
     try {
@@ -100,12 +109,11 @@ export class ProductosService {
     });
     if (!producto) throw new NotFoundException('Producto no encontrado.');
 
-    if (dto.sku !== undefined) producto.sku = dto.sku.trim().toUpperCase();
     if (dto.nombre !== undefined) producto.nombre = dto.nombre.trim();
     if (dto.descripcion !== undefined) producto.descripcion = dto.descripcion.trim();
     if (dto.stock !== undefined) producto.stock = dto.stock;
     if (dto.precioUnitario !== undefined) producto.precioUnitario = dto.precioUnitario;
-    if (dto.costo !== undefined) producto.costo = dto.costo;
+    if (dto.imagenUrl !== undefined) producto.imagenUrl = dto.imagenUrl?.trim() || null;
 
     if (dto.categoriaId !== undefined || dto.marcaId !== undefined || dto.estanteId !== undefined) {
       const references = await this.findReferences(
@@ -135,7 +143,7 @@ export class ProductosService {
       descripcion: producto.descripcion,
       stock: producto.stock,
       precioUnitario: producto.precioUnitario,
-      costo: producto.costo,
+      imagenUrl: producto.imagenUrl ?? null,
       categoria: {
         idCategoria: producto.categoria.idCategoria,
         nombre: producto.categoria.nombre,

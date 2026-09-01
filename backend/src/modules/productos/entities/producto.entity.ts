@@ -11,7 +11,6 @@ const decimalTransformer = {
 @Entity('productos')
 @Check('CHK_producto_stock', '"stock" >= 0')
 @Check('CHK_producto_precio', '"precio_unitario" > 0')
-@Check('CHK_producto_costo', '"costo" IS NULL OR "costo" >= 0')
 export class Producto {
   @PrimaryGeneratedColumn({ name: 'id_producto' })
   idProducto: number;
@@ -33,8 +32,8 @@ export class Producto {
   @Column({ name: 'precio_unitario', type: 'numeric', precision: 12, scale: 2, transformer: decimalTransformer })
   precioUnitario: number;
 
-  @Column({ type: 'numeric', precision: 12, scale: 2, nullable: true, transformer: decimalTransformer })
-  costo: number | null;
+  @Column({ name: 'imagen_url', type: 'varchar', length: 255, nullable: true })
+  imagenUrl: string | null;
 
   @ManyToOne(() => Categoria, (categoria) => categoria.productos, { nullable: false })
   @JoinColumn({ name: 'id_categoria' })

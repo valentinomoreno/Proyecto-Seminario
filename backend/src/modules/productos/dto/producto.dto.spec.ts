@@ -4,8 +4,13 @@ import { CreateProductoDto } from './producto.dto';
 
 describe('CreateProductoDto', () => {
   const valid = {
-    sku: 'REP-001', nombre: 'Repuesto', descripcion: 'Descripción', stock: 2,
-    precioUnitario: 1500.5, costo: 900, categoriaId: 1, marcaId: 1, estanteId: 1,
+    nombre: 'Repuesto',
+    descripcion: 'Descripción detallada',
+    stock: 2,
+    precioUnitario: 1500.5,
+    categoriaId: 1,
+    marcaId: 1,
+    estanteId: 1,
   };
 
   it('acepta un producto válido', async () => {

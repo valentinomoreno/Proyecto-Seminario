@@ -16,7 +16,6 @@ describe('Sprint 1 (e2e)', () => {
   let app: INestApplication;
   let dataSource: DataSource;
   let employeeUsername: string;
-  let sku: string;
   let testIds: { usuario?: number; empleado?: number; persona?: number; producto?: number } = {};
 
   beforeAll(async () => {
@@ -30,7 +29,6 @@ describe('Sprint 1 (e2e)', () => {
 
     const suffix = Date.now().toString();
     employeeUsername = `empleado_${suffix}`;
-    sku = `E2E-${suffix}`;
     const rol = await dataSource.getRepository(Rol).findOneByOrFail({ nombre: NombreRol.EMPLEADO_VENTA });
     const persona = await dataSource.getRepository(Persona).save({ nombre: 'Empleado', apellido: 'Prueba', dni: suffix.slice(-8), cuil: `20${suffix.slice(-8)}1` });
     const empleado = await dataSource.getRepository(Empleado).save({ legajo: `TEST-${suffix}`, activo: true, persona });
@@ -46,10 +44,10 @@ describe('Sprint 1 (e2e)', () => {
     await app.close();
   });
 
-  it('aplica autenticación, roles y CRUD de productos', async () => {
+  it('aplica autenticación, roles y CRUD de productos con código autoincremental', async () => {
     const adminLogin = await request(app.getHttpServer()).post('/auth/login').send({
-      nombre: process.env.SEED_ADMIN_USERNAME,
-      contrasena: process.env.SEED_ADMIN_PASSWORD,
+      nombre: process.env.SEED_ADMIN_USERNAME || 'admin',
+      contrasena: process.env.SEED_ADMIN_PASSWORD || 'Admin_Seguro.2026!',
     }).expect(200);
     const employeeLogin = await request(app.getHttpServer()).post('/auth/login').send({ nombre: employeeUsername, contrasena: 'Empleado123!' }).expect(200);
     const adminToken = adminLogin.body.accessToken as string;
@@ -61,18 +59,23 @@ describe('Sprint 1 (e2e)', () => {
       request(app.getHttpServer()).get('/estantes').auth(adminToken, { type: 'bearer' }).expect(200),
     ]);
     const payload = {
-      sku, nombre: 'Producto E2E', descripcion: 'Prueba integrada', stock: 3,
-      precioUnitario: 2000, costo: 1200,
+      nombre: 'Producto E2E Test',
+      descripcion: 'Prueba integrada autogenerada',
+      stock: 3,
+      precioUnitario: 2000,
       categoriaId: categorias.body[0].idCategoria,
       marcaId: marcas.body[0].idMarca,
       estanteId: estantes.body[0].idEstante,
     };
     const created = await request(app.getHttpServer()).post('/productos').auth(adminToken, { type: 'bearer' }).send(payload).expect(201);
     testIds.producto = created.body.idProducto as number;
+    const autoSku = created.body.sku as string;
+    expect(autoSku).toMatch(/^PROD-\d{5}$/);
 
-    await request(app.getHttpServer()).get('/productos').auth(employeeToken, { type: 'bearer' }).query({ buscar: sku }).expect(200).expect(({ body }) => {
+    await request(app.getHttpServer()).get('/productos').auth(employeeToken, { type: 'bearer' }).query({ buscar: autoSku }).expect(200).expect(({ body }) => {
       expect(body.data).toHaveLength(1);
       expect(body.data[0].ubicacion.estante.codigo).toBeTruthy();
+      expect(body.data[0].sku).toBe(autoSku);
     });
     await request(app.getHttpServer()).post('/productos').auth(employeeToken, { type: 'bearer' }).send(payload).expect(403);
     await request(app.getHttpServer()).put(`/productos/${testIds.producto}`).auth(adminToken, { type: 'bearer' }).send({ stock: -1 }).expect(400);
