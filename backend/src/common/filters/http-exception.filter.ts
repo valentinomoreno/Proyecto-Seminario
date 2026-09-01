@@ -4,11 +4,14 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(HttpExceptionFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const http = host.switchToHttp();
     const response = http.getResponse<Response>();
@@ -25,12 +28,15 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const rawMessage = payload.message ?? (typeof exceptionResponse === 'string' ? exceptionResponse : undefined);
     const message = rawMessage ?? (status === 500 ? 'Ocurrió un error interno. Intente nuevamente.' : 'No fue posible completar la operación.');
 
+    if (status >= 500) {
+      this.logger.error(`${request.method} ${request.url} – ${status}`, exception instanceof Error ? exception.stack : undefined);
+    }
+
     response.status(status).json({
       statusCode: status,
       message,
       error: payload.error ?? HttpStatus[status] ?? 'Error',
       timestamp: new Date().toISOString(),
-      path: request.url,
     });
   }
 }

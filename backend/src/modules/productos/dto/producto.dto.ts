@@ -14,6 +14,7 @@ export class CreateProductoDto {
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(2000)
   descripcion: string;
 
   @IsInt()
@@ -45,7 +46,7 @@ export class CreateProductoDto {
 export class UpdateProductoDto {
   @IsOptional() @IsString() @IsNotEmpty() @MaxLength(50) sku?: string;
   @IsOptional() @IsString() @IsNotEmpty() @MaxLength(120) nombre?: string;
-  @IsOptional() @IsString() @IsNotEmpty() descripcion?: string;
+  @IsOptional() @IsString() @IsNotEmpty() @MaxLength(2000) descripcion?: string;
   @IsOptional() @IsInt() @Min(0) stock?: number;
   @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @IsPositive() precioUnitario?: number;
   @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) costo?: number | null;
@@ -57,6 +58,7 @@ export class UpdateProductoDto {
 export class QueryProductosDto {
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   buscar?: string;
 
   @IsOptional()

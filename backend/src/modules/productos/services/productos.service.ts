@@ -100,14 +100,14 @@ export class ProductosService {
     });
     if (!producto) throw new NotFoundException('Producto no encontrado.');
 
-    if (dto.sku) producto.sku = dto.sku.trim().toUpperCase();
-    if (dto.nombre) producto.nombre = dto.nombre.trim();
-    if (dto.descripcion) producto.descripcion = dto.descripcion.trim();
+    if (dto.sku !== undefined) producto.sku = dto.sku.trim().toUpperCase();
+    if (dto.nombre !== undefined) producto.nombre = dto.nombre.trim();
+    if (dto.descripcion !== undefined) producto.descripcion = dto.descripcion.trim();
     if (dto.stock !== undefined) producto.stock = dto.stock;
     if (dto.precioUnitario !== undefined) producto.precioUnitario = dto.precioUnitario;
     if (dto.costo !== undefined) producto.costo = dto.costo;
 
-    if (dto.categoriaId || dto.marcaId || dto.estanteId) {
+    if (dto.categoriaId !== undefined || dto.marcaId !== undefined || dto.estanteId !== undefined) {
       const references = await this.findReferences(
         dto.categoriaId ?? producto.categoria.idCategoria,
         dto.marcaId ?? producto.marca.idMarca,

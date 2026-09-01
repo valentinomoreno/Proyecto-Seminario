@@ -25,12 +25,32 @@ async function restoreOrCreate<T extends ObjectLiteral>(
   return repository.save(record);
 }
 
+function validateSeedPassword(password: string): void {
+  if (password.length < 8) {
+    throw new Error('SEED_ADMIN_PASSWORD debe tener al menos 8 caracteres.');
+  }
+  if (!/[A-Z]/.test(password)) {
+    throw new Error('SEED_ADMIN_PASSWORD debe incluir al menos una letra mayúscula.');
+  }
+  if (!/[a-z]/.test(password)) {
+    throw new Error('SEED_ADMIN_PASSWORD debe incluir al menos una letra minúscula.');
+  }
+  if (!/[0-9]/.test(password)) {
+    throw new Error('SEED_ADMIN_PASSWORD debe incluir al menos un número.');
+  }
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    throw new Error('SEED_ADMIN_PASSWORD debe incluir al menos un carácter especial.');
+  }
+}
+
 async function seed(): Promise<void> {
   const username = process.env.SEED_ADMIN_USERNAME;
   const password = process.env.SEED_ADMIN_PASSWORD;
   if (!username || !password) {
     throw new Error('Defina SEED_ADMIN_USERNAME y SEED_ADMIN_PASSWORD antes de ejecutar el seed.');
   }
+
+  validateSeedPassword(password);
 
   await AppDataSource.initialize();
   await AppDataSource.transaction(async (manager) => {
