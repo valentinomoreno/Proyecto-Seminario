@@ -1,24 +1,22 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { throwFriendlyDatabaseError } from '../../../common/database/database-error.util';
 import { CreateCategoriaDto, UpdateCategoriaDto } from '../dto/catalogo.dto';
-import { Categoria } from '../entities/categoria.entity';
-import { Producto } from '../entities/producto.entity';
+import { CATEGORIAS_REPOSITORY, ICategoriasRepository } from '../repositories/interfaces/categorias-repository.interface';
+import { IProductosRepository, PRODUCTOS_REPOSITORY } from '../repositories/interfaces/productos-repository.interface';
 
 @Injectable()
 export class CategoriasService {
   constructor(
-    @InjectRepository(Categoria) private readonly repository: Repository<Categoria>,
-    @InjectRepository(Producto) private readonly productosRepository: Repository<Producto>,
+    @Inject(CATEGORIAS_REPOSITORY) private readonly repository: ICategoriasRepository,
+    @Inject(PRODUCTOS_REPOSITORY) private readonly productosRepository: IProductosRepository,
   ) {}
 
   findAll() {
-    return this.repository.find({ order: { nombre: 'ASC' } });
+    return this.repository.findAll();
   }
 
   async findOne(id: number) {
-    const categoria = await this.repository.findOneBy({ idCategoria: id });
+    const categoria = await this.repository.findById(id);
     if (!categoria) throw new NotFoundException('Categoría no encontrada.');
     return categoria;
   }
@@ -43,7 +41,7 @@ export class CategoriasService {
 
   async remove(id: number) {
     const categoria = await this.findOne(id);
-    if (await this.productosRepository.count({ where: { categoria: { idCategoria: id } } })) {
+    if (await this.productosRepository.countByCategoria(id)) {
       throw new ConflictException('No se puede eliminar una categoría con productos activos.');
     }
     await this.repository.softRemove(categoria);

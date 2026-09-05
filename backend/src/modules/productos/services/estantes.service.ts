@@ -1,42 +1,30 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { throwFriendlyDatabaseError } from '../../../common/database/database-error.util';
 import { CreateEstanteDto, UpdateEstanteDto } from '../dto/catalogo.dto';
-import { Estante } from '../entities/estante.entity';
-import { Producto } from '../entities/producto.entity';
-import { Sector } from '../entities/sector.entity';
+import { ESTANTES_REPOSITORY, IEstantesRepository } from '../repositories/interfaces/estantes-repository.interface';
+import { IProductosRepository, PRODUCTOS_REPOSITORY } from '../repositories/interfaces/productos-repository.interface';
+import { ISectoresRepository, SECTORES_REPOSITORY } from '../repositories/interfaces/sectores-repository.interface';
 
 @Injectable()
 export class EstantesService {
   constructor(
-    @InjectRepository(Estante) private readonly repository: Repository<Estante>,
-    @InjectRepository(Sector) private readonly sectoresRepository: Repository<Sector>,
-    @InjectRepository(Producto) private readonly productosRepository: Repository<Producto>,
+    @Inject(ESTANTES_REPOSITORY) private readonly repository: IEstantesRepository,
+    @Inject(SECTORES_REPOSITORY) private readonly sectoresRepository: ISectoresRepository,
+    @Inject(PRODUCTOS_REPOSITORY) private readonly productosRepository: IProductosRepository,
   ) {}
 
   findAll(sectorId?: number) {
-    return this.repository.find({
-      where: sectorId ? { sector: { idSector: sectorId } } : {},
-      relations: { sector: { deposito: true } },
-      order: { codigo: 'ASC' },
-    });
+    return this.repository.findAll(sectorId);
   }
 
   async findOne(id: number) {
-    const estante = await this.repository.findOne({
-      where: { idEstante: id },
-      relations: { sector: { deposito: true } },
-    });
+    const estante = await this.repository.findById(id);
     if (!estante) throw new NotFoundException('Estante no encontrado.');
     return estante;
   }
 
   private async findSector(id: number) {
-    const sector = await this.sectoresRepository.findOne({
-      where: { idSector: id },
-      relations: { deposito: true },
-    });
+    const sector = await this.sectoresRepository.findById(id);
     if (!sector) throw new NotFoundException('Sector no encontrado o inactivo.');
     return sector;
   }
@@ -49,7 +37,9 @@ export class EstantesService {
         descripcion: dto.descripcion?.trim() || null,
         sector,
       }));
-    } catch (error) { throwFriendlyDatabaseError(error); }
+    } catch (error) {
+      throwFriendlyDatabaseError(error);
+    }
   }
 
   async update(id: number, dto: UpdateEstanteDto) {
@@ -57,12 +47,16 @@ export class EstantesService {
     if (dto.codigo) estante.codigo = dto.codigo.trim();
     if (dto.descripcion !== undefined) estante.descripcion = dto.descripcion.trim() || null;
     if (dto.sectorId) estante.sector = await this.findSector(dto.sectorId);
-    try { return await this.repository.save(estante); } catch (error) { throwFriendlyDatabaseError(error); }
+    try {
+      return await this.repository.save(estante);
+    } catch (error) {
+      throwFriendlyDatabaseError(error);
+    }
   }
 
   async remove(id: number) {
     const estante = await this.findOne(id);
-    if (await this.productosRepository.count({ where: { estante: { idEstante: id } } })) {
+    if (await this.productosRepository.countByEstante(id)) {
       throw new ConflictException('No se puede eliminar un estante con productos activos.');
     }
     await this.repository.softRemove(estante);
