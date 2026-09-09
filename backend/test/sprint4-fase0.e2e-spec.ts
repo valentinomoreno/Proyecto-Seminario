@@ -134,9 +134,10 @@ describe('Sprint 4 – Fase 0: Clientes, Ventas y Cuenta Corriente (e2e)', () =>
       .auth(adminToken, { type: 'bearer' })
       .expect(200);
     expect(Number(cuenta.body.saldo)).toBe(TOTAL_ESPERADO);
-    const imputacion = cuenta.body.movimientos.find((m: { tipo: string }) => m.tipo === 'IMPUTACION_VENTA');
+    const movimientos = cuenta.body.movimientos as Array<{ tipo: string; monto: number }>;
+    const imputacion = movimientos.find((m) => m.tipo === 'IMPUTACION_VENTA');
     expect(imputacion).toBeDefined();
-    expect(Number(imputacion.monto)).toBe(TOTAL_ESPERADO);
+    expect(Number(imputacion?.monto)).toBe(TOTAL_ESPERADO);
   });
 
   it('permite buscar la venta por número de comprobante', async () => {
@@ -174,8 +175,9 @@ describe('Sprint 4 – Fase 0: Clientes, Ventas y Cuenta Corriente (e2e)', () =>
       .expect(200);
     expect(Number(cuenta.body.saldo)).toBe(TOTAL_ESPERADO - pago);
 
-    const movimientoPago = cuenta.body.movimientos.find((m: { tipo: string }) => m.tipo === 'PAGO');
-    expect(Number(movimientoPago.monto)).toBe(-pago);
+    const movimientos = cuenta.body.movimientos as Array<{ tipo: string; monto: number }>;
+    const movimientoPago = movimientos.find((m) => m.tipo === 'PAGO');
+    expect(Number(movimientoPago?.monto)).toBe(-pago);
   });
 
   it('rechaza un pago mayor al saldo adeudado', async () => {

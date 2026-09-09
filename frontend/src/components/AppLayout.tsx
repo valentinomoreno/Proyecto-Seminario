@@ -76,6 +76,62 @@ export function AppLayout() {
               )}
 
               <li className="pc-item pc-caption">
+                <label>VENTAS Y COBRANZAS</label>
+              </li>
+
+              <li className="pc-item">
+                <NavLink
+                  to="/clientes"
+                  className={({ isActive }) => `pc-link ${isActive ? 'active' : ''}`}
+                  onClick={closeMobileNav}
+                >
+                  <span className="pc-micon">
+                    <i className="ti ti-users" />
+                  </span>
+                  <span className="pc-mtext">Clientes</span>
+                </NavLink>
+              </li>
+
+              <li className="pc-item">
+                <NavLink
+                  to="/ventas/nueva"
+                  className={({ isActive }) => `pc-link ${isActive ? 'active' : ''}`}
+                  onClick={closeMobileNav}
+                >
+                  <span className="pc-micon">
+                    <i className="ti ti-shopping-cart-plus" />
+                  </span>
+                  <span className="pc-mtext">Nueva Venta</span>
+                </NavLink>
+              </li>
+
+              <li className="pc-item">
+                <NavLink
+                  to="/devoluciones/nueva"
+                  className={({ isActive }) => `pc-link ${isActive ? 'active' : ''}`}
+                  onClick={closeMobileNav}
+                >
+                  <span className="pc-micon">
+                    <i className="ti ti-arrow-back-up" />
+                  </span>
+                  <span className="pc-mtext">Devoluciones</span>
+                </NavLink>
+              </li>
+
+              <li className="pc-item">
+                <NavLink
+                  to="/cuentas-corrientes"
+                  className={({ isActive }) => `pc-link ${isActive ? 'active' : ''}`}
+                  onClick={closeMobileNav}
+                >
+                  <span className="pc-micon">
+                    <i className="ti ti-report-money" />
+                  </span>
+                  <span className="pc-mtext">Cuentas Corrientes</span>
+                </NavLink>
+              </li>
+
+              <li className="pc-item pc-caption">
                 <label>SISTEMA & CUENTA</label>
               </li>
 
