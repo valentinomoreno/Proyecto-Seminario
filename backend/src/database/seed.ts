@@ -1,6 +1,7 @@
 import * as bcrypt from 'bcrypt';
 import { DeepPartial, EntityManager, ObjectLiteral } from 'typeorm';
 import { NombreRol } from '../common/enums/nombre-rol.enum';
+import { CondicionIva } from '../modules/clientes/entities/condicion-iva.entity';
 import { Categoria } from '../modules/productos/entities/categoria.entity';
 import { Deposito } from '../modules/productos/entities/deposito.entity';
 import { Estante } from '../modules/productos/entities/estante.entity';
@@ -64,6 +65,14 @@ async function seed(): Promise<void> {
       nombre: NombreRol.EMPLEADO_VENTA,
       descripcion: 'Acceso operativo al catálogo y las ventas.',
     });
+
+    for (const condicion of [
+      { codigo: 'CONSUMIDOR_FINAL', nombre: 'Consumidor Final' },
+      { codigo: 'MONOTRIBUTO', nombre: 'Monotributo' },
+      { codigo: 'RESPONSABLE_INSCRIPTO', nombre: 'Responsable Inscripto' },
+    ]) {
+      await restoreOrCreate(manager, CondicionIva, { codigo: condicion.codigo }, condicion);
+    }
 
     // 1. Usuario Administrador
     const personaAdmin = await restoreOrCreate(manager, Persona, { dni: '00000000' }, {

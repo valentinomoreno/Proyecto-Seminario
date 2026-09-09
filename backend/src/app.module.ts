@@ -5,6 +5,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { createTypeOrmOptions } from './database/typeorm.config';
 import { AppController } from './app.controller';
 import { AuthModule } from './modules/auth/auth.module';
+import { ClientesModule } from './modules/clientes/clientes.module';
+import { CuentasCorrientesModule } from './modules/cuentas-corrientes/cuentas-corrientes.module';
 import { ProductosModule } from './modules/productos/productos.module';
 import { UsuariosModule } from './modules/usuarios/usuarios.module';
 
@@ -19,6 +21,8 @@ import { UsuariosModule } from './modules/usuarios/usuarios.module';
     UsuariosModule,
     AuthModule,
     ProductosModule,
+    ClientesModule,
+    CuentasCorrientesModule,
   ],
   controllers: [AppController],
 })

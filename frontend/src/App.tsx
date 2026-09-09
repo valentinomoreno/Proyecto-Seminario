@@ -1,6 +1,8 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/AppLayout';
 import { CatalogoPage } from './pages/CatalogoPage';
+import { ClientesListPage } from './pages/ClientesListPage';
+import { FormClientePage } from './pages/FormClientePage';
 import { FormProductoPage } from './pages/FormProductoPage';
 import { LoginPage } from './pages/LoginPage';
 import { ProtectedRoute } from './routes/ProtectedRoute';
@@ -12,6 +14,9 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route path="/catalogo" element={<CatalogoPage />} />
+          <Route path="/clientes" element={<ClientesListPage />} />
+          <Route path="/clientes/nuevo" element={<FormClientePage />} />
+          <Route path="/clientes/:id/editar" element={<FormClientePage />} />
           <Route element={<ProtectedRoute roles={['ADMINISTRADOR']} />}>
             <Route path="/productos/nuevo" element={<FormProductoPage />} />
             <Route path="/productos/:id/editar" element={<FormProductoPage />} />
