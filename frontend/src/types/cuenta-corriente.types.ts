@@ -1,11 +1,11 @@
+import type { ClienteResumen } from '../utils/cliente';
+
 export type TipoMovimientoCtaCte = 'IMPUTACION_VENTA' | 'PAGO' | 'MORA' | 'NOTA_CREDITO';
 
-export interface CuentaCorrienteCliente {
-  idCliente: number;
-  nombre: string;
-  apellido: string;
-  email: string;
-}
+export type EstadoCuentaCorriente = 'ACTIVA' | 'INACTIVA';
+
+/** El cliente embebido en la cuenta corriente usa el modelo del módulo de clientes. */
+export type CuentaCorrienteCliente = ClienteResumen;
 
 export interface MovimientoCtaCte {
   idMovimientoCtaCte: number;
@@ -18,8 +18,12 @@ export interface MovimientoCtaCte {
 
 export interface CuentaCorriente {
   idCuentaCorriente: number;
+  numeroCuenta: string;
   saldo: number;
-  fechaUltimoMovimiento: string | null;
+  estado: EstadoCuentaCorriente;
+  fechaAlta?: string | null;
+  fechaBaja?: string | null;
+  fechaUltimoMovimiento?: string | null;
   cliente: CuentaCorrienteCliente;
 }
 

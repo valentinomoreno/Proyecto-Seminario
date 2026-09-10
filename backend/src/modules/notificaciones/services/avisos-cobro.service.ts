@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Cliente, TipoCliente } from '../../clientes/entities/cliente.entity';
 import { CuentaCorriente } from '../../cuentas-corrientes/entities/cuenta-corriente.entity';
 import {
   CUENTAS_CORRIENTES_REPOSITORY,
@@ -45,7 +46,9 @@ export class AvisosCobroService {
 
     for (const cuenta of cuentas) {
       const cliente = cuenta.cliente;
-      if (!cliente?.email) {
+      // El correo es opcional en el cliente: sin dirección de contacto no hay aviso posible.
+      const correo = cliente?.correo;
+      if (!correo) {
         omitidos += 1;
         continue;
       }
@@ -58,7 +61,7 @@ export class AvisosCobroService {
 
       try {
         await this.mailService.enviar({
-          to: cliente.email,
+          to: correo,
           subject: 'Aviso de saldo pendiente en su cuenta corriente',
           html: this.construirHtml(cuenta),
         });
@@ -67,7 +70,7 @@ export class AvisosCobroService {
         // Si el envío falla liberamos la reserva para poder reintentar en la próxima corrida.
         await this.avisosRepository.delete({ idAviso: reserva.idAviso });
         omitidos += 1;
-        this.logger.error(`No se pudo enviar el aviso de cobro a ${cliente.email}.`, error as Error);
+        this.logger.error(`No se pudo enviar el aviso de cobro a ${correo}.`, error as Error);
       }
     }
 
@@ -99,12 +102,27 @@ export class AvisosCobroService {
     }).format(referencia);
   }
 
+  /**
+   * Nombre para el saludo del correo: persona o empresa según el tipo de cliente.
+   * Ambas relaciones son opcionales, así que siempre hay un fallback legible.
+   */
+  private nombreCliente(cliente: Cliente): string {
+    if (cliente.tipo === TipoCliente.PERSONA) {
+      const nombreCompleto = `${cliente.persona?.nombre ?? ''} ${cliente.persona?.apellido ?? ''}`.trim();
+      if (nombreCompleto) return nombreCompleto;
+    } else if (cliente.tipo === TipoCliente.EMPRESA) {
+      const razonSocial = cliente.empresa?.razonSocial?.trim() ?? '';
+      if (razonSocial) return razonSocial;
+    }
+    return `Cliente #${cliente.idCliente}`;
+  }
+
   private construirHtml(cuenta: CuentaCorriente): string {
     const cliente = cuenta.cliente;
     const saldo = Number(cuenta.saldo).toFixed(2);
 
     return [
-      `<p>Hola ${cliente.nombre} ${cliente.apellido},</p>`,
+      `<p>Hola ${this.nombreCliente(cliente)},</p>`,
       `<p>Le recordamos que su cuenta corriente registra un <strong>saldo pendiente de $${saldo}</strong>.</p>`,
       '<p>Puede cancelarlo de las siguientes formas:</p>',
       '<ul>',

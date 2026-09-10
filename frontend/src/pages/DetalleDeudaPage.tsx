@@ -7,6 +7,7 @@ import type {
   PagoPayload,
   TipoMovimientoCtaCte,
 } from '../types/cuenta-corriente.types';
+import { correoCliente, documentoCliente, nombreCliente } from '../utils/cliente';
 import { formatearFechaHora, formatearMonto } from '../utils/formato';
 
 const ETIQUETAS_MOVIMIENTO: Record<TipoMovimientoCtaCte, { texto: string; clase: string; icono: string }> = {
@@ -37,7 +38,7 @@ export function DetalleDeudaPage() {
     let active = true;
     setCargando(true);
     setError('');
-    api.get<CuentaCorrienteDetalle>(`/cuentas-corrientes/${idCliente}`)
+    api.get<CuentaCorrienteDetalle>(`/cuentas-corrientes/cliente/${idCliente}/historial`)
       .then(({ data }) => { if (active) setCuenta(data); })
       .catch((requestError: unknown) => { if (active) setError(getApiErrorMessage(requestError)); })
       .finally(() => { if (active) setCargando(false); });
@@ -60,7 +61,7 @@ export function DetalleDeudaPage() {
       ...(observaciones.trim() ? { observaciones: observaciones.trim() } : {}),
     };
     try {
-      await api.post(`/cuentas-corrientes/${idCliente}/pagos`, payload);
+      await api.post(`/cuentas-corrientes/cliente/${idCliente}/pagos`, payload);
       setMonto('');
       setObservaciones('');
       setExitoPago(`Pago de $ ${formatearMonto(montoNumero)} registrado correctamente.`);
@@ -109,7 +110,7 @@ export function DetalleDeudaPage() {
             <div className="col-md-8">
               <div className="page-header-title">
                 <h4 className="mb-1 fw-bold">
-                  Cuenta corriente de {cuenta.cliente.apellido}, {cuenta.cliente.nombre}
+                  Cuenta corriente de {nombreCliente(cuenta.cliente)}
                 </h4>
               </div>
               <ul className="breadcrumb m-0 bg-transparent p-0 small">
@@ -138,10 +139,11 @@ export function DetalleDeudaPage() {
               <div className="row g-3 align-items-center">
                 <div className="col-md-5">
                   <div className="small text-muted">Cliente</div>
-                  <div className="fw-bold text-dark fs-6">
-                    {cuenta.cliente.apellido}, {cuenta.cliente.nombre}
-                  </div>
-                  <small className="text-muted">{cuenta.cliente.email}</small>
+                  <div className="fw-bold text-dark fs-6">{nombreCliente(cuenta.cliente)}</div>
+                  <small className="text-muted d-block">{correoCliente(cuenta.cliente) ?? 'Sin correo registrado'}</small>
+                  {documentoCliente(cuenta.cliente) && (
+                    <small className="text-muted font-monospace">{documentoCliente(cuenta.cliente)}</small>
+                  )}
                 </div>
                 <div className="col-md-3">
                   <div className="small text-muted">Último movimiento</div>

@@ -1,108 +1,98 @@
-import { NotFoundException } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
-import { DataSource, EntityManager } from 'typeorm';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
 import { CuentaCorriente } from '../../cuentas-corrientes/entities/cuenta-corriente.entity';
-import { Cliente } from '../entities/cliente.entity';
+import { CreateClientePersonaDto } from '../dto/cliente.dto';
+import { ClientePersona } from '../entities/cliente-persona.entity';
+import { Cliente, TipoCliente } from '../entities/cliente.entity';
+import { CondicionIva } from '../entities/condicion-iva.entity';
 import { CLIENTES_REPOSITORY, IClientesRepository } from '../repositories/interfaces/clientes-repository.interface';
+import {
+  CONDICIONES_IVA_REPOSITORY,
+  ICondicionesIvaRepository,
+} from '../repositories/interfaces/condiciones-iva-repository.interface';
 import { ClientesService } from './clientes.service';
 
-describe('ClientesService with Repository (DIP)', () => {
+describe('ClientesService', () => {
   let service: ClientesService;
-  let mockClientesRepo: jest.Mocked<IClientesRepository>;
-  let mockClienteEntityRepo: { create: jest.Mock; save: jest.Mock };
-  let mockCuentaEntityRepo: { create: jest.Mock; save: jest.Mock };
-  let mockDataSource: { transaction: jest.Mock };
+  let clientesRepository: jest.Mocked<IClientesRepository>;
+  let condicionesRepository: jest.Mocked<ICondicionesIvaRepository>;
+
+  const condicion = Object.assign(new CondicionIva(), {
+    idCondicionIva: 1,
+    codigo: 'CONSUMIDOR_FINAL',
+    nombre: 'Consumidor Final',
+    clientes: [],
+  });
+
+  function clientePersona(cuentaCorriente: CuentaCorriente | null = null): Cliente {
+    const cliente = Object.assign(new Cliente(), {
+      idCliente: 1,
+      tipo: TipoCliente.PERSONA,
+      telefono: null,
+      correo: null,
+      direccion: null,
+      condicionIva: condicion,
+      empresa: null,
+      cuentaCorriente,
+      fechaBaja: null,
+    });
+    cliente.persona = Object.assign(new ClientePersona(), {
+      idClientePersona: 1,
+      nombre: 'Ana',
+      apellido: 'Pérez',
+      dni: '12345678',
+      cuil: '20123456786',
+      cliente,
+    });
+    return cliente;
+  }
 
   beforeEach(async () => {
-    mockClientesRepo = {
+    clientesRepository = {
       findAndCount: jest.fn(),
       findById: jest.fn(),
-      create: jest.fn(),
+      existsPersonaByDni: jest.fn(),
+      existsPersonaByCuil: jest.fn(),
+      existsEmpresaByCuit: jest.fn(),
+      createPersona: jest.fn(),
+      createEmpresa: jest.fn(),
       save: jest.fn(),
       softRemove: jest.fn(),
     };
+    condicionesRepository = { findAll: jest.fn(), findById: jest.fn() };
 
-    mockClienteEntityRepo = {
-      create: jest.fn((data: Partial<Cliente>) => ({ idCliente: 1, ...data })),
-      save: jest.fn((cliente: Cliente) => Promise.resolve(cliente)),
-    };
-
-    mockCuentaEntityRepo = {
-      create: jest.fn((data: Partial<CuentaCorriente>) => ({ idCuentaCorriente: 1, ...data })),
-      save: jest.fn((cuenta: CuentaCorriente) => Promise.resolve(cuenta)),
-    };
-
-    const fakeManager = {
-      getRepository: jest.fn((entity: unknown) =>
-        entity === Cliente ? mockClienteEntityRepo : mockCuentaEntityRepo,
-      ),
-    } as unknown as EntityManager;
-
-    mockDataSource = {
-      transaction: jest.fn((callback: (manager: EntityManager) => Promise<unknown>) => callback(fakeManager)),
-    };
-
-    const module: TestingModule = await Test.createTestingModule({
+    const moduleRef = await Test.createTestingModule({
       providers: [
         ClientesService,
-        {
-          provide: CLIENTES_REPOSITORY,
-          useValue: mockClientesRepo,
-        },
-        {
-          provide: DataSource,
-          useValue: mockDataSource,
-        },
+        { provide: CLIENTES_REPOSITORY, useValue: clientesRepository },
+        { provide: CONDICIONES_IVA_REPOSITORY, useValue: condicionesRepository },
       ],
     }).compile();
-
-    service = module.get<ClientesService>(ClientesService);
+    service = moduleRef.get(ClientesService);
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
+  it('rechaza una condición de IVA inexistente', async () => {
+    condicionesRepository.findById.mockResolvedValue(null);
+    await expect(service.createPersona({ condicionIvaId: 99 } as CreateClientePersonaDto))
+      .rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('findOne lanza NotFoundException cuando el cliente no existe', async () => {
-    mockClientesRepo.findById.mockResolvedValue(null);
-
-    await expect(service.findOne(999)).rejects.toBeInstanceOf(NotFoundException);
-    expect(mockClientesRepo.findById).toHaveBeenCalledWith(999);
+  it('informa específicamente un DNI duplicado', async () => {
+    condicionesRepository.findById.mockResolvedValue(condicion);
+    clientesRepository.existsPersonaByDni.mockResolvedValue(true);
+    await expect(service.createPersona({
+      nombre: 'Ana', apellido: 'Pérez', dni: '12345678', cuil: '20123456786', condicionIvaId: 1,
+    })).rejects.toThrow('Ya existe un cliente con ese DNI.');
   });
 
-  it('create crea el cliente y su cuenta corriente con saldo 0 en una transacción', async () => {
-    const dto = {
-      nombre: ' Ana ',
-      apellido: ' Pérez ',
-      dniCuit: '20304050',
-      email: ' ana@test.com ',
-      telefono: ' 3415551234 ',
-    };
+  it('bloquea la baja cuando la cuenta está activa', async () => {
+    const cuenta = Object.assign(new CuentaCorriente(), { activa: true });
+    clientesRepository.findById.mockResolvedValue(clientePersona(cuenta));
+    await expect(service.remove(1)).rejects.toBeInstanceOf(ConflictException);
+    expect(clientesRepository.softRemove).not.toHaveBeenCalled();
+  });
 
-    const result = await service.create(dto);
-
-    expect(mockDataSource.transaction).toHaveBeenCalledTimes(1);
-    expect(mockClienteEntityRepo.create).toHaveBeenCalledWith({
-      nombre: 'Ana',
-      apellido: 'Pérez',
-      dniCuit: '20304050',
-      email: 'ana@test.com',
-      telefono: '3415551234',
-      activo: true,
-    });
-    expect(mockCuentaEntityRepo.create).toHaveBeenCalledWith(
-      expect.objectContaining({ saldo: 0, fechaUltimoMovimiento: null }),
-    );
-    expect(mockCuentaEntityRepo.save).toHaveBeenCalledTimes(1);
-    expect(result).toEqual({
-      idCliente: 1,
-      nombre: 'Ana',
-      apellido: 'Pérez',
-      dniCuit: '20304050',
-      email: 'ana@test.com',
-      telefono: '3415551234',
-      activo: true,
-      saldoCuentaCorriente: 0,
-    });
+  it('rechaza una modificación de contacto vacía', async () => {
+    await expect(service.update(1, {})).rejects.toBeInstanceOf(BadRequestException);
   });
 });

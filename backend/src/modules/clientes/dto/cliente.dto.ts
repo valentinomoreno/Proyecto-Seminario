@@ -1,38 +1,96 @@
-import { Type } from 'class-transformer';
-import { IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsEmail,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  Min,
+} from 'class-validator';
+import { IsIdentificadorFiscalArgentino, normalizarDocumento } from '../utils/documento.util';
 
-export class CreateClienteDto {
+function trimOptional({ value }: { value: unknown }): unknown {
+  if (value === null || value === undefined) return value;
+  return typeof value === 'string' ? value.trim() || null : value;
+}
+
+function trimRequired({ value }: { value: unknown }): unknown {
+  return typeof value === 'string' ? value.trim() : value;
+}
+
+class ContactoClienteDto {
+  @IsOptional()
+  @Transform(trimOptional)
+  @IsString()
+  @MaxLength(40)
+  telefono?: string | null;
+
+  @IsOptional()
+  @Transform(trimOptional)
+  @IsEmail({}, { message: 'El correo electrónico no tiene un formato válido.' })
+  @MaxLength(160)
+  correo?: string | null;
+
+  @IsOptional()
+  @Transform(trimOptional)
+  @IsString()
+  @MaxLength(200)
+  direccion?: string | null;
+}
+
+class CreateClienteDto extends ContactoClienteDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  condicionIvaId: number;
+}
+
+export class CreateClientePersonaDto extends CreateClienteDto {
+  @Transform(trimRequired)
   @IsString()
   @IsNotEmpty()
   @MaxLength(80)
   nombre: string;
 
+  @Transform(trimRequired)
   @IsString()
   @IsNotEmpty()
   @MaxLength(80)
   apellido: string;
 
+  @Transform(({ value }) => normalizarDocumento(value))
   @IsString()
-  @Matches(/^\d{7,11}$/, { message: 'dniCuit debe contener entre 7 y 11 dígitos.' })
-  dniCuit: string;
+  @Matches(/^\d{7,8}$/, { message: 'El DNI debe contener 7 u 8 dígitos.' })
+  dni: string;
 
-  @IsEmail({}, { message: 'El email no tiene un formato válido.' })
-  @MaxLength(120)
-  email: string;
-
-  @IsOptional()
+  @Transform(({ value }) => normalizarDocumento(value))
   @IsString()
-  @MaxLength(30)
-  telefono?: string | null;
+  @IsIdentificadorFiscalArgentino('CUIL')
+  cuil: string;
 }
 
-export class UpdateClienteDto {
-  @IsOptional() @IsString() @IsNotEmpty() @MaxLength(80) nombre?: string;
-  @IsOptional() @IsString() @IsNotEmpty() @MaxLength(80) apellido?: string;
-  @IsOptional() @IsString() @Matches(/^\d{7,11}$/, { message: 'dniCuit debe contener entre 7 y 11 dígitos.' }) dniCuit?: string;
-  @IsOptional() @IsEmail({}, { message: 'El email no tiene un formato válido.' }) @MaxLength(120) email?: string;
-  @IsOptional() @IsString() @MaxLength(30) telefono?: string | null;
+export class CreateClienteEmpresaDto extends CreateClienteDto {
+  @Transform(({ value }) => normalizarDocumento(value))
+  @IsString()
+  @IsIdentificadorFiscalArgentino('CUIT')
+  cuit: string;
+
+  @Transform(trimRequired)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(160)
+  razonSocial: string;
+
+  @Transform(trimRequired)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(160)
+  personaContacto: string;
 }
+
+export class UpdateClienteDto extends ContactoClienteDto {}
 
 export class QueryClientesDto {
   @IsOptional()

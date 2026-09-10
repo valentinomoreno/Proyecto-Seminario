@@ -1,7 +1,11 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
+import { BadRequestException, ConflictException } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
 import { DataSource, EntityManager } from 'typeorm';
+import { Cliente, TipoCliente } from '../../clientes/entities/cliente.entity';
+import { CLIENTES_REPOSITORY, IClientesRepository } from '../../clientes/repositories/interfaces/clientes-repository.interface';
+import { Empleado } from '../../usuarios/entities/empleado.entity';
 import { CuentaCorriente } from '../entities/cuenta-corriente.entity';
+import { MovimientoCtaCte } from '../entities/movimiento-cta-cte.entity';
 import { TipoMovimientoCtaCte } from '../enums/tipo-movimiento-cta-cte.enum';
 import {
   CUENTAS_CORRIENTES_REPOSITORY,
@@ -13,134 +17,199 @@ import {
 } from '../repositories/interfaces/movimientos-cta-cte-repository.interface';
 import { CuentasCorrientesService } from './cuentas-corrientes.service';
 
-describe('CuentasCorrientesService with Repository (DIP)', () => {
+describe('CuentasCorrientesService', () => {
   let service: CuentasCorrientesService;
-  let mockCuentasRepo: jest.Mocked<ICuentasCorrientesRepository>;
-  let mockMovimientosRepo: jest.Mocked<IMovimientosCtaCteRepository>;
-  let mockDataSource: { transaction: jest.Mock };
-  let managerCuentasRepo: { findOne: jest.Mock; save: jest.Mock };
-  let managerMovimientosRepo: { create: jest.Mock; save: jest.Mock };
-
-  const cliente = { idCliente: 7, nombre: 'Ada', apellido: 'Lovelace', email: 'ada@test.com' };
+  let cuentasRepository: jest.Mocked<ICuentasCorrientesRepository>;
+  let clientesRepository: jest.Mocked<IClientesRepository>;
+  let movimientosRepository: jest.Mocked<IMovimientosCtaCteRepository>;
+  let cuentasManagerRepository: { findOne: jest.Mock; save: jest.Mock };
+  let movimientosManagerRepository: { create: jest.Mock; save: jest.Mock };
+  let dataSource: { transaction: jest.Mock };
+  let cliente: Cliente;
 
   beforeEach(async () => {
-    mockCuentasRepo = {
-      findAll: jest.fn(),
-      findByCliente: jest.fn(),
+    cliente = Object.assign(new Cliente(), {
+      idCliente: 7,
+      tipo: TipoCliente.EMPRESA,
+      persona: null,
+      empresa: { razonSocial: 'Repuestos Centro', cuit: '30123456781' },
+      condicionIva: { idCondicionIva: 3, codigo: 'RESPONSABLE_INSCRIPTO', nombre: 'Responsable Inscripto' },
+    });
+    cuentasRepository = {
+      findAndCount: jest.fn(),
       findById: jest.fn(),
+      findByClienteId: jest.fn(),
       findConSaldoDeudor: jest.fn(),
+      create: jest.fn((data) => Object.assign(new CuentaCorriente(), data)),
       save: jest.fn(),
+      generateNextNumber: jest.fn(),
     };
-
-    mockMovimientosRepo = {
+    movimientosRepository = {
       findByCuenta: jest.fn(),
       existeMoraEnMes: jest.fn(),
       create: jest.fn(),
       save: jest.fn(),
     };
-
-    managerCuentasRepo = {
+    cuentasManagerRepository = {
       findOne: jest.fn(),
-      save: jest.fn((cuenta: Record<string, unknown>) => Promise.resolve(cuenta)),
+      save: jest.fn((cuenta: CuentaCorriente) => Promise.resolve(cuenta)),
     };
-
-    managerMovimientosRepo = {
-      create: jest.fn((data: Record<string, unknown>) => data),
-      save: jest.fn((movimiento: Record<string, unknown>) =>
-        Promise.resolve({ idMovimientoCtaCte: 99, ...movimiento }),
+    movimientosManagerRepository = {
+      create: jest.fn((data: Partial<MovimientoCtaCte>) => data),
+      save: jest.fn((movimiento: Partial<MovimientoCtaCte>) =>
+        Promise.resolve({ idMovimientoCtaCte: 55, fecha: new Date(), ...movimiento }),
       ),
     };
-
-    const fakeManager = {
-      getRepository: jest.fn((entity: unknown) =>
-        entity === CuentaCorriente ? managerCuentasRepo : managerMovimientosRepo,
-      ),
+    const managerFalso = {
+      getRepository: jest.fn((entidad: unknown) => {
+        if (entidad === CuentaCorriente) return cuentasManagerRepository;
+        if (entidad === Empleado) return { create: (data: Partial<Empleado>) => data };
+        return movimientosManagerRepository;
+      }),
+    } as unknown as EntityManager;
+    dataSource = {
+      transaction: jest.fn((cb: (manager: EntityManager) => Promise<unknown>) => cb(managerFalso)),
     };
-
-    mockDataSource = {
-      transaction: jest.fn((runInTransaction: (manager: EntityManager) => Promise<unknown>) =>
-        runInTransaction(fakeManager as unknown as EntityManager),
-      ),
+    clientesRepository = {
+      findAndCount: jest.fn(),
+      findById: jest.fn(),
+      existsPersonaByDni: jest.fn(),
+      existsPersonaByCuil: jest.fn(),
+      existsEmpresaByCuit: jest.fn(),
+      createPersona: jest.fn(),
+      createEmpresa: jest.fn(),
+      save: jest.fn(),
+      softRemove: jest.fn(),
     };
-
-    const module: TestingModule = await Test.createTestingModule({
+    const moduleRef = await Test.createTestingModule({
       providers: [
         CuentasCorrientesService,
-        {
-          provide: CUENTAS_CORRIENTES_REPOSITORY,
-          useValue: mockCuentasRepo,
-        },
-        {
-          provide: MOVIMIENTOS_CTA_CTE_REPOSITORY,
-          useValue: mockMovimientosRepo,
-        },
-        {
-          provide: DataSource,
-          useValue: mockDataSource,
-        },
+        { provide: CUENTAS_CORRIENTES_REPOSITORY, useValue: cuentasRepository },
+        { provide: CLIENTES_REPOSITORY, useValue: clientesRepository },
+        { provide: MOVIMIENTOS_CTA_CTE_REPOSITORY, useValue: movimientosRepository },
+        { provide: DataSource, useValue: dataSource },
       ],
     }).compile();
-
-    service = module.get<CuentasCorrientesService>(CuentasCorrientesService);
+    service = moduleRef.get(CuentasCorrientesService);
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
+  it('crea una cuenta con número automático y saldo cero', async () => {
+    clientesRepository.findById.mockResolvedValue(cliente);
+    cuentasRepository.findByClienteId.mockResolvedValue(null);
+    cuentasRepository.generateNextNumber.mockResolvedValue('CC-000001');
+    cuentasRepository.save.mockImplementation((cuenta) => Promise.resolve(Object.assign(cuenta, { idCuentaCorriente: 1 })));
+    cuentasRepository.findById.mockResolvedValue(Object.assign(new CuentaCorriente(), {
+      idCuentaCorriente: 1,
+      numeroCuenta: 'CC-000001',
+      saldo: 0,
+      activa: true,
+      fechaAlta: new Date(),
+      fechaBaja: null,
+      cliente,
+    }));
+
+    const result = await service.create({ clienteId: 7 });
+    expect(result).toMatchObject({ numeroCuenta: 'CC-000001', saldo: 0, estado: 'ACTIVA' });
   });
 
-  it('findByCliente lanza NotFoundException si el cliente no tiene cuenta corriente', async () => {
-    mockCuentasRepo.findByCliente.mockResolvedValue(null);
+  it('reactiva la cuenta anterior conservando el número', async () => {
+    const cuenta = Object.assign(new CuentaCorriente(), {
+      idCuentaCorriente: 2,
+      numeroCuenta: 'CC-000009',
+      saldo: 0,
+      activa: false,
+      fechaAlta: new Date(),
+      fechaBaja: new Date(),
+      cliente,
+    });
+    clientesRepository.findById.mockResolvedValue(cliente);
+    cuentasRepository.findByClienteId.mockResolvedValue(cuenta);
+    cuentasRepository.save.mockResolvedValue(cuenta);
+    cuentasRepository.findById.mockResolvedValue(cuenta);
 
-    await expect(service.findByCliente(123)).rejects.toBeInstanceOf(NotFoundException);
-    expect(mockMovimientosRepo.findByCuenta).not.toHaveBeenCalled();
+    const result = await service.create({ clienteId: 7 });
+    expect(result.numeroCuenta).toBe('CC-000009');
+    expect(cuenta.activa).toBe(true);
+    expect(cuenta.fechaBaja).toBeNull();
+    expect(cuentasRepository.generateNextNumber).not.toHaveBeenCalled();
   });
 
-  it('registrarPago rechaza un monto mayor al saldo adeudado', async () => {
-    const cuenta = { idCuentaCorriente: 1, cliente, saldo: 1000, fechaUltimoMovimiento: null };
-    mockCuentasRepo.findByCliente.mockResolvedValue(cuenta as any);
-    managerCuentasRepo.findOne.mockResolvedValue({ ...cuenta });
-
-    await expect(service.registrarPago(7, { monto: 1500 }, 3)).rejects.toBeInstanceOf(BadRequestException);
-    expect(managerMovimientosRepo.save).not.toHaveBeenCalled();
-    expect(managerCuentasRepo.save).not.toHaveBeenCalled();
+  it('rechaza la baja de una cuenta con saldo pendiente', async () => {
+    cuentasRepository.findById.mockResolvedValue(Object.assign(new CuentaCorriente(), {
+      activa: true,
+      saldo: 150.25,
+      cliente,
+    }));
+    await expect(service.remove(1)).rejects.toBeInstanceOf(ConflictException);
+    expect(cuentasRepository.save).not.toHaveBeenCalled();
   });
 
-  it('registrarPago de $500 sobre saldo $1000 deja saldo $500 y crea un movimiento PAGO de -500', async () => {
-    const cuenta = { idCuentaCorriente: 1, cliente, saldo: 1000, fechaUltimoMovimiento: null };
-    mockCuentasRepo.findByCliente.mockResolvedValue(cuenta as any);
-    managerCuentasRepo.findOne.mockResolvedValue({ ...cuenta });
+  describe('historial y pagos (Sprint 4)', () => {
+    const cuentaActiva = (saldo: number): CuentaCorriente =>
+      Object.assign(new CuentaCorriente(), {
+        idCuentaCorriente: 3,
+        numeroCuenta: 'CC-000003',
+        saldo,
+        activa: true,
+        fechaAlta: new Date(),
+        fechaBaja: null,
+        cliente,
+      });
 
-    const resultado = await service.registrarPago(7, { monto: 500, observaciones: ' Pago parcial ' }, 3);
+    it('devuelve la cuenta del cliente con su historial de movimientos', async () => {
+      const cuenta = cuentaActiva(1500);
+      cuentasRepository.findByClienteId.mockResolvedValue(cuenta);
+      cuentasRepository.findById.mockResolvedValue(cuenta);
+      movimientosRepository.findByCuenta.mockResolvedValue([
+        Object.assign(new MovimientoCtaCte(), {
+          idMovimientoCtaCte: 9,
+          tipo: TipoMovimientoCtaCte.IMPUTACION_VENTA,
+          monto: 1500,
+          saldoResultante: 1500,
+          fecha: new Date(),
+          idVenta: 4,
+          observaciones: null,
+        }),
+      ]);
 
-    expect(managerMovimientosRepo.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tipo: TipoMovimientoCtaCte.PAGO,
-        monto: -500,
-        saldoResultante: 500,
-        empleado: { idEmpleado: 3 },
-        observaciones: 'Pago parcial',
-      }),
-    );
+      const result = await service.findHistorialByCliente(7);
 
-    const cuentaGuardada = managerCuentasRepo.save.mock.calls[0][0];
-    expect(cuentaGuardada.saldo).toBe(500);
-    expect(cuentaGuardada.fechaUltimoMovimiento).toBeInstanceOf(Date);
+      expect(movimientosRepository.findByCuenta).toHaveBeenCalledWith(3);
+      expect(result.cuenta).toMatchObject({ idCuentaCorriente: 3, saldo: 1500 });
+      expect(result.movimientos).toHaveLength(1);
+      expect(result.movimientos[0]).toMatchObject({ tipo: TipoMovimientoCtaCte.IMPUTACION_VENTA, monto: 1500 });
+    });
 
-    expect(resultado.saldo).toBe(500);
-    expect(resultado.movimiento.monto).toBe(-500);
-    expect(resultado.movimiento.tipo).toBe(TipoMovimientoCtaCte.PAGO);
-    expect(resultado.cliente.idCliente).toBe(7);
-  });
+    it('registra el pago como movimiento negativo y descuenta el saldo', async () => {
+      const cuenta = cuentaActiva(1000);
+      cuentasRepository.findByClienteId.mockResolvedValue(cuenta);
+      cuentasRepository.findById.mockResolvedValue(cuenta);
+      cuentasManagerRepository.findOne.mockResolvedValue(cuenta);
 
-  it('registrarPago sin empleado autenticado guarda el movimiento sin empleado', async () => {
-    const cuenta = { idCuentaCorriente: 1, cliente, saldo: 200, fechaUltimoMovimiento: null };
-    mockCuentasRepo.findByCliente.mockResolvedValue(cuenta as any);
-    managerCuentasRepo.findOne.mockResolvedValue({ ...cuenta });
+      const result = await service.registrarPago(7, { monto: 400 }, 11);
 
-    await service.registrarPago(7, { monto: 200 }, null);
+      // Bloqueo pesimista por PK (sin JOIN sobre la relación cliente).
+      expect(cuentasManagerRepository.findOne).toHaveBeenCalledWith({
+        where: { idCuentaCorriente: 3 },
+        lock: { mode: 'pessimistic_write' },
+      });
+      const movimientoCreado = movimientosManagerRepository.create.mock.calls[0][0] as Partial<MovimientoCtaCte>;
+      expect(movimientoCreado.tipo).toBe(TipoMovimientoCtaCte.PAGO);
+      expect(movimientoCreado.monto).toBe(-400);
+      expect(movimientoCreado.saldoResultante).toBe(600);
+      expect(cuenta.saldo).toBe(600);
+      expect(result.movimiento).toMatchObject({ monto: -400, saldoResultante: 600 });
+    });
 
-    expect(managerMovimientosRepo.create).toHaveBeenCalledWith(
-      expect.objectContaining({ empleado: null, monto: -200, saldoResultante: 0 }),
-    );
+    it('rechaza un pago mayor al saldo pendiente', async () => {
+      const cuenta = cuentaActiva(1000);
+      cuentasRepository.findByClienteId.mockResolvedValue(cuenta);
+      cuentasRepository.findById.mockResolvedValue(cuenta);
+      cuentasManagerRepository.findOne.mockResolvedValue(cuenta);
+
+      await expect(service.registrarPago(7, { monto: 1200 }, null)).rejects.toBeInstanceOf(BadRequestException);
+      expect(movimientosManagerRepository.save).not.toHaveBeenCalled();
+      expect(cuentasManagerRepository.save).not.toHaveBeenCalled();
+    });
   });
 });

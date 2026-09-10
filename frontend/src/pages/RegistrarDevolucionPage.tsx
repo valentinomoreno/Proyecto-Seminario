@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, getApiErrorMessage } from '../api/axios.instance';
 import type { Devolucion, DevolucionPayload } from '../types/devolucion.types';
 import type { Venta } from '../types/venta.types';
+import { documentoCliente, nombreCliente } from '../utils/cliente';
 import { diasTranscurridos, formatearFecha, formatearFechaHora, formatearMonto } from '../utils/formato';
 
 const PLAZO_DEVOLUCION_DIAS = 15;
@@ -158,6 +159,9 @@ export function RegistrarDevolucionPage() {
                 <div className="border rounded-3 p-3">
                   <div className="small text-muted">Comprobante de venta</div>
                   <div className="fw-semibold font-monospace">{devolucion.venta.numeroComprobante}</div>
+                  {devolucion.venta.cliente && (
+                    <small className="text-muted d-block">{nombreCliente(devolucion.venta.cliente)}</small>
+                  )}
                 </div>
               </div>
               <div className="col-sm-4">
@@ -262,7 +266,8 @@ export function RegistrarDevolucionPage() {
                         </div>
                         <div className="col-md-4">
                           <div className="small text-muted">Cliente</div>
-                          <div className="fw-semibold">{venta.cliente.apellido}, {venta.cliente.nombre}</div>
+                          <div className="fw-semibold">{nombreCliente(venta.cliente)}</div>
+                          <small className="text-muted">{documentoCliente(venta.cliente) ?? 'Sin documento registrado'}</small>
                         </div>
                       </div>
 

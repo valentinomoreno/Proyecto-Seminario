@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class Sprint4Fase1Devoluciones1724800000003 implements MigrationInterface {
-  name = 'Sprint4Fase1Devoluciones1724800000003';
+export class Sprint4Fase1Devoluciones1724800000004 implements MigrationInterface {
+  name = 'Sprint4Fase1Devoluciones1724800000004';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`CREATE SEQUENCE IF NOT EXISTS "nota_credito_numero_seq" START WITH 1 INCREMENT BY 1`);

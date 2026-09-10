@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ClientesModule } from '../clientes/clientes.module';
 import { CuentasCorrientesController } from './controllers/cuentas-corrientes.controller';
 import { CuentaCorriente } from './entities/cuenta-corriente.entity';
 import { MovimientoCtaCte } from './entities/movimiento-cta-cte.entity';
@@ -10,19 +11,11 @@ import { TypeOrmMovimientosCtaCteRepository } from './repositories/typeorm-movim
 import { CuentasCorrientesService } from './services/cuentas-corrientes.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CuentaCorriente, MovimientoCtaCte])],
+  imports: [TypeOrmModule.forFeature([CuentaCorriente, MovimientoCtaCte]), ClientesModule],
   controllers: [CuentasCorrientesController],
   providers: [
-    // Repositories wired via interface injection tokens (DIP)
-    {
-      provide: CUENTAS_CORRIENTES_REPOSITORY,
-      useClass: TypeOrmCuentasCorrientesRepository,
-    },
-    {
-      provide: MOVIMIENTOS_CTA_CTE_REPOSITORY,
-      useClass: TypeOrmMovimientosCtaCteRepository,
-    },
-    // Services
+    { provide: CUENTAS_CORRIENTES_REPOSITORY, useClass: TypeOrmCuentasCorrientesRepository },
+    { provide: MOVIMIENTOS_CTA_CTE_REPOSITORY, useClass: TypeOrmMovimientosCtaCteRepository },
     CuentasCorrientesService,
   ],
   exports: [CuentasCorrientesService, CUENTAS_CORRIENTES_REPOSITORY, MOVIMIENTOS_CTA_CTE_REPOSITORY],

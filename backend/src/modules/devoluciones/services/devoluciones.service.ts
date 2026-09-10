@@ -199,7 +199,6 @@ export class DevolucionesService {
     );
 
     cuenta.saldo = saldoResultante;
-    cuenta.fechaUltimoMovimiento = new Date();
     await manager.getRepository(CuentaCorriente).save(cuenta);
   }
 

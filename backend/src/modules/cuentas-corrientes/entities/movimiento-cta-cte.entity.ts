@@ -22,10 +22,10 @@ export class MovimientoCtaCte {
   @Column({ type: 'enum', enum: TipoMovimientoCtaCte })
   tipo: TipoMovimientoCtaCte;
 
-  @Column({ type: 'numeric', precision: 12, scale: 2, transformer: decimalTransformer })
+  @Column({ type: 'numeric', precision: 14, scale: 2, transformer: decimalTransformer })
   monto: number;
 
-  @Column({ name: 'saldo_resultante', type: 'numeric', precision: 12, scale: 2, transformer: decimalTransformer })
+  @Column({ name: 'saldo_resultante', type: 'numeric', precision: 14, scale: 2, transformer: decimalTransformer })
   saldoResultante: number;
 
   @Index()

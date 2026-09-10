@@ -1,11 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, getApiErrorMessage } from '../api/axios.instance';
+import type { PaginatedResponse } from '../types/cliente.types';
 import type { CuentaCorriente } from '../types/cuenta-corriente.types';
+import { correoCliente, documentoCliente, nombreCliente } from '../utils/cliente';
 import { formatearFecha, formatearMonto } from '../utils/formato';
+
+const LIMITE_POR_PAGINA = 10;
 
 export function CuentasCorrientesPage() {
   const [cuentas, setCuentas] = useState<CuentaCorriente[]>([]);
+  const [page, setPage] = useState(1);
+  const [meta, setMeta] = useState({ page: 1, limit: LIMITE_POR_PAGINA, total: 0, totalPages: 0 });
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
 
@@ -13,12 +19,14 @@ export function CuentasCorrientesPage() {
     let active = true;
     setCargando(true);
     setError('');
-    api.get<CuentaCorriente[]>('/cuentas-corrientes')
-      .then(({ data }) => { if (active) setCuentas(data); })
+    api.get<PaginatedResponse<CuentaCorriente>>('/cuentas-corrientes', {
+      params: { page, limit: LIMITE_POR_PAGINA },
+    })
+      .then(({ data }) => { if (active) { setCuentas(data.data); setMeta(data.meta); } })
       .catch((requestError: unknown) => { if (active) setError(getApiErrorMessage(requestError)); })
       .finally(() => { if (active) setCargando(false); });
     return () => { active = false; };
-  }, []);
+  }, [page]);
 
   const deudaTotal = useMemo(
     () => cuentas.reduce((acumulado, cuenta) => acumulado + Math.max(Number(cuenta.saldo ?? 0), 0), 0),
@@ -40,8 +48,11 @@ export function CuentasCorrientesPage() {
               </ul>
             </div>
             <div className="col-md-4 text-md-end mt-3 mt-md-0">
-              <span className="badge bg-light-danger text-danger px-3 py-2 fs-6 fw-semibold">
-                Deuda total: $ {formatearMonto(deudaTotal)}
+              <span
+                className="badge bg-light-danger text-danger px-3 py-2 fs-6 fw-semibold"
+                title="Suma de los saldos deudores de las cuentas listadas en esta página."
+              >
+                Deuda listada: $ {formatearMonto(deudaTotal)}
               </span>
             </div>
           </div>
@@ -62,7 +73,7 @@ export function CuentasCorrientesPage() {
             <span>Saldos por cliente</span>
           </h6>
           <span className="badge bg-light-primary text-primary px-3 py-2 fs-6 fw-semibold">
-            {cuentas.length} {cuentas.length === 1 ? 'cuenta' : 'cuentas'}
+            {meta.total} {meta.total === 1 ? 'cuenta' : 'cuentas'}
           </span>
         </div>
 
@@ -72,7 +83,7 @@ export function CuentasCorrientesPage() {
               <thead className="table-light">
                 <tr>
                   <th>Cliente</th>
-                  <th>Email</th>
+                  <th>Contacto</th>
                   <th>Último movimiento</th>
                   <th>Saldo</th>
                   <th style={{ width: '140px' }} className="text-end">Acciones</th>
@@ -101,12 +112,18 @@ export function CuentasCorrientesPage() {
                   return (
                     <tr key={cuenta.idCuentaCorriente}>
                       <td>
-                        <div className="fw-bold text-dark">
-                          {cuenta.cliente.apellido}, {cuenta.cliente.nombre}
-                        </div>
-                        <small className="text-muted">Cliente #{cuenta.cliente.idCliente}</small>
+                        <span className={`badge mb-1 ${cuenta.cliente.tipo === 'PERSONA' ? 'bg-light-primary text-primary' : 'bg-light-secondary text-secondary'}`}>
+                          {cuenta.cliente.tipo === 'PERSONA' ? 'Particular' : 'Empresa'}
+                        </span>
+                        <div className="fw-bold text-dark">{nombreCliente(cuenta.cliente)}</div>
+                        <small className="text-muted font-monospace">{cuenta.numeroCuenta}</small>
                       </td>
-                      <td className="small text-dark">{cuenta.cliente.email}</td>
+                      <td className="small text-dark">
+                        <div>{correoCliente(cuenta.cliente) ?? <span className="text-muted">Sin correo</span>}</div>
+                        {documentoCliente(cuenta.cliente) && (
+                          <small className="text-muted font-monospace">{documentoCliente(cuenta.cliente)}</small>
+                        )}
+                      </td>
                       <td className="small text-muted">{formatearFecha(cuenta.fechaUltimoMovimiento)}</td>
                       <td>
                         <span className={`fs-6 fw-bold font-monospace ${conDeuda ? 'text-danger' : 'text-success'}`}>
@@ -134,6 +151,32 @@ export function CuentasCorrientesPage() {
             </table>
           </div>
         </div>
+
+        {meta.totalPages > 1 && (
+          <div className="card-footer bg-white border-top py-3 d-flex justify-content-between align-items-center">
+            <span className="small text-muted">
+              Página {meta.page} de {meta.totalPages} ({meta.total} total)
+            </span>
+            <div className="btn-group btn-group-sm">
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                disabled={page <= 1}
+                onClick={() => setPage((current) => current - 1)}
+              >
+                Anterior
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                disabled={page >= meta.totalPages}
+                onClick={() => setPage((current) => current + 1)}
+              >
+                Siguiente
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

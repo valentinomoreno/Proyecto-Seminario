@@ -1,106 +1,166 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { DataSource } from 'typeorm';
-import { throwFriendlyDatabaseError } from '../../../common/database/database-error.util';
-import { CuentaCorriente } from '../../cuentas-corrientes/entities/cuenta-corriente.entity';
-import { CreateClienteDto, QueryClientesDto, UpdateClienteDto } from '../dto/cliente.dto';
-import { Cliente } from '../entities/cliente.entity';
-import { CLIENTES_REPOSITORY, IClientesRepository } from '../repositories/interfaces/clientes-repository.interface';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { QueryFailedError } from 'typeorm';
+import {
+  CreateClienteEmpresaDto,
+  CreateClientePersonaDto,
+  QueryClientesDto,
+  UpdateClienteDto,
+} from '../dto/cliente.dto';
+import { Cliente, TipoCliente } from '../entities/cliente.entity';
+import {
+  CLIENTES_REPOSITORY,
+  IClientesRepository,
+} from '../repositories/interfaces/clientes-repository.interface';
+import {
+  CONDICIONES_IVA_REPOSITORY,
+  ICondicionesIvaRepository,
+} from '../repositories/interfaces/condiciones-iva-repository.interface';
+
+interface PostgresError {
+  code?: string;
+  constraint?: string;
+}
 
 @Injectable()
 export class ClientesService {
   constructor(
-    @Inject(CLIENTES_REPOSITORY) private readonly repository: IClientesRepository,
-    private readonly dataSource: DataSource,
+    @Inject(CLIENTES_REPOSITORY)
+    private readonly repository: IClientesRepository,
+    @Inject(CONDICIONES_IVA_REPOSITORY)
+    private readonly condicionesRepository: ICondicionesIvaRepository,
   ) {}
 
   async findAll(query: QueryClientesDto) {
     const page = query.page ?? 1;
     const limit = Math.min(query.limit ?? 10, 100);
     const [clientes, total] = await this.repository.findAndCount(query);
-
     return {
       data: clientes.map((cliente) => this.toResponse(cliente)),
-      meta: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   }
 
   async findOne(id: number) {
-    const cliente = await this.repository.findById(id);
-    if (!cliente) throw new NotFoundException('Cliente no encontrado.');
-    return this.toResponse(cliente);
+    return this.toResponse(await this.requireCliente(id));
   }
 
-  async create(dto: CreateClienteDto) {
+  async createPersona(dto: CreateClientePersonaDto) {
+    const condicionIva = await this.condicionesRepository.findById(dto.condicionIvaId);
+    if (!condicionIva) throw new NotFoundException('Condición de IVA no encontrada.');
+
+    if (await this.repository.existsPersonaByDni(dto.dni)) {
+      throw new ConflictException('Ya existe un cliente con ese DNI.');
+    }
+    if (await this.repository.existsPersonaByCuil(dto.cuil)) {
+      throw new ConflictException('Ya existe un cliente con ese CUIL.');
+    }
+
     try {
-      // Regla de negocio: 1 cliente = 1 cuenta corriente, creados de forma atómica.
-      const cliente = await this.dataSource.transaction(async (manager) => {
-        const clientesRepository = manager.getRepository(Cliente);
-        const cuentasCorrientesRepository = manager.getRepository(CuentaCorriente);
-
-        const nuevoCliente = clientesRepository.create({
-          nombre: dto.nombre.trim(),
-          apellido: dto.apellido.trim(),
-          dniCuit: dto.dniCuit.trim(),
-          email: dto.email.trim(),
-          telefono: dto.telefono?.trim() || null,
-          activo: true,
-        });
-        const clienteGuardado = await clientesRepository.save(nuevoCliente);
-
-        const nuevaCuentaCorriente = cuentasCorrientesRepository.create({
-          cliente: clienteGuardado,
-          saldo: 0,
-          fechaUltimoMovimiento: null,
-        });
-        clienteGuardado.cuentaCorriente = await cuentasCorrientesRepository.save(nuevaCuentaCorriente);
-
-        return clienteGuardado;
-      });
-
-      return this.toResponse(cliente);
+      return this.toResponse(await this.repository.createPersona(dto, condicionIva));
     } catch (error) {
-      throwFriendlyDatabaseError(error);
+      this.throwDuplicateDocumentError(error);
+    }
+  }
+
+  async createEmpresa(dto: CreateClienteEmpresaDto) {
+    const condicionIva = await this.condicionesRepository.findById(dto.condicionIvaId);
+    if (!condicionIva) throw new NotFoundException('Condición de IVA no encontrada.');
+
+    if (await this.repository.existsEmpresaByCuit(dto.cuit)) {
+      throw new ConflictException('Ya existe un cliente con ese CUIT.');
+    }
+
+    try {
+      return this.toResponse(await this.repository.createEmpresa(dto, condicionIva));
+    } catch (error) {
+      this.throwDuplicateDocumentError(error);
     }
   }
 
   async update(id: number, dto: UpdateClienteDto) {
-    const cliente = await this.repository.findById(id);
-    if (!cliente) throw new NotFoundException('Cliente no encontrado.');
-
-    if (dto.nombre !== undefined) cliente.nombre = dto.nombre.trim();
-    if (dto.apellido !== undefined) cliente.apellido = dto.apellido.trim();
-    if (dto.dniCuit !== undefined) cliente.dniCuit = dto.dniCuit.trim();
-    if (dto.email !== undefined) cliente.email = dto.email.trim();
-    if (dto.telefono !== undefined) cliente.telefono = dto.telefono?.trim() || null;
-
-    try {
-      return this.toResponse(await this.repository.save(cliente));
-    } catch (error) {
-      throwFriendlyDatabaseError(error);
+    if (!Object.keys(dto).length) {
+      throw new BadRequestException('Debe proporcionar al menos un dato de contacto para modificar.');
     }
+
+    const cliente = await this.requireCliente(id);
+    if (dto.telefono !== undefined) cliente.telefono = dto.telefono;
+    if (dto.correo !== undefined) cliente.correo = dto.correo;
+    if (dto.direccion !== undefined) cliente.direccion = dto.direccion;
+    return this.toResponse(await this.repository.save(cliente));
   }
 
-  async remove(id: number) {
-    const cliente = await this.repository.findById(id);
-    if (!cliente) throw new NotFoundException('Cliente no encontrado.');
+  async remove(id: number): Promise<void> {
+    const cliente = await this.requireCliente(id);
+    if (cliente.cuentaCorriente?.activa) {
+      throw new ConflictException('Debe dar de baja la cuenta corriente activa antes de eliminar el cliente.');
+    }
     await this.repository.softRemove(cliente);
   }
 
+  private async requireCliente(id: number): Promise<Cliente> {
+    const cliente = await this.repository.findById(id);
+    if (!cliente) throw new NotFoundException('Cliente no encontrado.');
+    return cliente;
+  }
+
+  private throwDuplicateDocumentError(error: unknown): never {
+    if (error instanceof QueryFailedError) {
+      const driverError = error.driverError as PostgresError;
+      if (driverError.code === '23505') {
+        const constraint = driverError.constraint ?? '';
+        if (constraint.includes('dni')) throw new ConflictException('Ya existe un cliente con ese DNI.');
+        if (constraint.includes('cuil')) throw new ConflictException('Ya existe un cliente con ese CUIL.');
+        if (constraint.includes('cuit')) throw new ConflictException('Ya existe un cliente con ese CUIT.');
+      }
+    }
+    throw error;
+  }
+
   private toResponse(cliente: Cliente) {
+    const cuenta = cliente.cuentaCorriente;
+    const estadoCuenta = !cuenta ? 'SIN_CUENTA' : cuenta.activa ? 'ACTIVA' : 'INACTIVA';
+    const nombreMostrar = cliente.tipo === TipoCliente.PERSONA
+      ? `${cliente.persona?.apellido ?? ''}, ${cliente.persona?.nombre ?? ''}`.replace(/^,\s*/, '').trim()
+      : cliente.empresa?.razonSocial ?? '';
+
     return {
       idCliente: cliente.idCliente,
-      nombre: cliente.nombre,
-      apellido: cliente.apellido,
-      dniCuit: cliente.dniCuit,
-      email: cliente.email,
-      telefono: cliente.telefono ?? null,
-      activo: cliente.activo,
-      saldoCuentaCorriente: cliente.cuentaCorriente ? cliente.cuentaCorriente.saldo : null,
+      tipo: cliente.tipo,
+      nombreMostrar,
+      condicionIva: {
+        idCondicionIva: cliente.condicionIva.idCondicionIva,
+        codigo: cliente.condicionIva.codigo,
+        nombre: cliente.condicionIva.nombre,
+      },
+      contacto: {
+        telefono: cliente.telefono ?? null,
+        correo: cliente.correo ?? null,
+        direccion: cliente.direccion ?? null,
+      },
+      persona: cliente.persona ? {
+        nombre: cliente.persona.nombre,
+        apellido: cliente.persona.apellido,
+        dni: cliente.persona.dni,
+        cuil: cliente.persona.cuil,
+      } : null,
+      empresa: cliente.empresa ? {
+        cuit: cliente.empresa.cuit,
+        razonSocial: cliente.empresa.razonSocial,
+        personaContacto: cliente.empresa.personaContacto,
+      } : null,
+      estadoCuenta,
+      cuentaCorriente: cuenta ? {
+        idCuentaCorriente: cuenta.idCuentaCorriente,
+        numeroCuenta: cuenta.numeroCuenta,
+        saldo: cuenta.saldo,
+        estado: cuenta.activa ? 'ACTIVA' : 'INACTIVA',
+      } : null,
     };
   }
 }

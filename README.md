@@ -1,6 +1,6 @@
 # Sistema de Gestión Integral para Local de Autopartes
 
-Proyecto de Seminario Integrador (UTN). El Sprint 1 implementa autenticación JWT con roles, catálogo de productos, stock y ubicación física mediante Depósito → Sector → Estante.
+Proyecto de Seminario Integrador (UTN). Los Sprint 1 y 2 implementan autenticación JWT con roles, catálogo de productos, stock, ubicación física, clientes particulares/empresas y la habilitación base de cuentas corrientes.
 
 ## Requisitos
 
@@ -40,9 +40,28 @@ npm run db:seed             # Seed idempotente
 
 `GET /productos?buscar=filtro&page=1&limit=10` devuelve productos paginados con categoría, marca y ubicación completa. Los endpoints `GET /sectores?depositoId=1` y `GET /estantes?sectorId=1` permiten construir selecciones dependientes.
 
+## API del Sprint 2
+
+Los recursos de clientes requieren Bearer JWT. Administrador y Empleado de Venta pueden consultar el catálogo `GET /condiciones-iva`, buscar clientes con `GET /clientes?buscar=...`, registrar particulares o empresas, actualizar sus datos de contacto y habilitar cuentas corrientes.
+
+```text
+GET    /condiciones-iva
+GET    /clientes?buscar=&page=1&limit=10
+GET    /clientes/:id
+POST   /clientes/persona
+POST   /clientes/empresa
+PUT    /clientes/:id
+DELETE /clientes/:id
+GET    /cuentas-corrientes?page=1&limit=10
+POST   /cuentas-corrientes
+DELETE /cuentas-corrientes/:id
+```
+
+Las bajas de clientes y cuentas corrientes son exclusivas del Administrador. Una cuenta solo puede darse de baja con saldo cero; al reactivarla conserva su número `CC-000001` y vuelve a saldo cero. La baja de un cliente se rechaza mientras mantenga una cuenta activa.
+
 ## Estructura
 
-- `backend/src/modules/`: módulos NestJS de autenticación, usuarios y productos.
+- `backend/src/modules/`: módulos NestJS de autenticación, usuarios, productos, clientes y cuentas corrientes.
 - `backend/src/database/`: configuración TypeORM, migración y seed.
 - `frontend/src/`: contexto de sesión, cliente HTTP, rutas protegidas y vistas.
 

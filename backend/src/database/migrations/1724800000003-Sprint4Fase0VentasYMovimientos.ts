@@ -1,19 +1,17 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class Sprint4Fase0Prerrequisitos1724800000002 implements MigrationInterface {
-  name = 'Sprint4Fase0Prerrequisitos1724800000002';
+/**
+ * Ventas, kardex de stock y ledger de cuenta corriente.
+ * Las tablas `clientes` y `cuentas_corrientes` las crea la migración del Sprint 2.
+ */
+export class Sprint4Fase0VentasYMovimientos1724800000003 implements MigrationInterface {
+  name = 'Sprint4Fase0VentasYMovimientos1724800000003';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`CREATE SEQUENCE IF NOT EXISTS "venta_comprobante_seq" START WITH 1 INCREMENT BY 1`);
 
-    await queryRunner.query(`CREATE TABLE "clientes" ("id_cliente" SERIAL NOT NULL, "nombre" character varying(80) NOT NULL, "apellido" character varying(80) NOT NULL, "dni_cuit" character varying(11) NOT NULL, "email" character varying(120) NOT NULL, "telefono" character varying(30), "activo" boolean NOT NULL DEFAULT true, "fecha_baja" TIMESTAMP WITH TIME ZONE, CONSTRAINT "UQ_clientes_dni_cuit" UNIQUE ("dni_cuit"), CONSTRAINT "UQ_clientes_email" UNIQUE ("email"), CONSTRAINT "PK_clientes" PRIMARY KEY ("id_cliente"))`);
-    await queryRunner.query(`CREATE INDEX "IDX_clientes_nombre" ON "clientes" ("nombre")`);
-
-    await queryRunner.query(`CREATE TABLE "cuentas_corrientes" ("id_cuenta_corriente" SERIAL NOT NULL, "id_cliente" integer NOT NULL, "saldo" numeric(12,2) NOT NULL DEFAULT 0, "fecha_ultimo_movimiento" TIMESTAMP WITH TIME ZONE, CONSTRAINT "REL_cuentas_corrientes_cliente" UNIQUE ("id_cliente"), CONSTRAINT "PK_cuentas_corrientes" PRIMARY KEY ("id_cuenta_corriente"))`);
-    await queryRunner.query(`ALTER TABLE "cuentas_corrientes" ADD CONSTRAINT "FK_cuentas_corrientes_cliente" FOREIGN KEY ("id_cliente") REFERENCES "clientes"("id_cliente") ON DELETE NO ACTION ON UPDATE NO ACTION`);
-
     await queryRunner.query(`CREATE TYPE "public"."movimientos_cta_cte_tipo_enum" AS ENUM('IMPUTACION_VENTA', 'PAGO', 'MORA', 'NOTA_CREDITO')`);
-    await queryRunner.query(`CREATE TABLE "movimientos_cta_cte" ("id_movimiento_cta_cte" SERIAL NOT NULL, "id_cuenta_corriente" integer NOT NULL, "tipo" "public"."movimientos_cta_cte_tipo_enum" NOT NULL, "monto" numeric(12,2) NOT NULL, "saldo_resultante" numeric(12,2) NOT NULL, "fecha" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "id_venta" integer, "id_empleado" integer, "observaciones" character varying(255), CONSTRAINT "CHK_movimiento_cta_cte_monto" CHECK ("monto" <> 0), CONSTRAINT "PK_movimientos_cta_cte" PRIMARY KEY ("id_movimiento_cta_cte"))`);
+    await queryRunner.query(`CREATE TABLE "movimientos_cta_cte" ("id_movimiento_cta_cte" SERIAL NOT NULL, "id_cuenta_corriente" integer NOT NULL, "tipo" "public"."movimientos_cta_cte_tipo_enum" NOT NULL, "monto" numeric(14,2) NOT NULL, "saldo_resultante" numeric(14,2) NOT NULL, "fecha" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "id_venta" integer, "id_empleado" integer, "observaciones" character varying(255), CONSTRAINT "CHK_movimiento_cta_cte_monto" CHECK ("monto" <> 0), CONSTRAINT "PK_movimientos_cta_cte" PRIMARY KEY ("id_movimiento_cta_cte"))`);
     await queryRunner.query(`CREATE INDEX "IDX_movimientos_cta_cte_tipo" ON "movimientos_cta_cte" ("tipo")`);
     await queryRunner.query(`CREATE INDEX "IDX_movimientos_cta_cte_fecha" ON "movimientos_cta_cte" ("fecha")`);
     await queryRunner.query(`ALTER TABLE "movimientos_cta_cte" ADD CONSTRAINT "FK_movimientos_cta_cte_cuenta" FOREIGN KEY ("id_cuenta_corriente") REFERENCES "cuentas_corrientes"("id_cuenta_corriente") ON DELETE NO ACTION ON UPDATE NO ACTION`);
@@ -45,8 +43,6 @@ export class Sprint4Fase0Prerrequisitos1724800000002 implements MigrationInterfa
     await queryRunner.query(`DROP TYPE "public"."movimientos_stock_tipo_enum"`);
     await queryRunner.query(`DROP TABLE "movimientos_cta_cte"`);
     await queryRunner.query(`DROP TYPE "public"."movimientos_cta_cte_tipo_enum"`);
-    await queryRunner.query(`DROP TABLE "cuentas_corrientes"`);
-    await queryRunner.query(`DROP TABLE "clientes"`);
     await queryRunner.query(`DROP SEQUENCE IF EXISTS "venta_comprobante_seq"`);
   }
 }

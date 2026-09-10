@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import request = require('supertest');
 import { AppModule } from '../src/app.module';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
+import { crearClientePersona, limpiarCliente } from './clientes.e2e-helper';
 
 describe('Sprint 4 – Fase 0: Clientes, Ventas y Cuenta Corriente (e2e)', () => {
   let app: INestApplication;
@@ -43,14 +44,7 @@ describe('Sprint 4 – Fase 0: Clientes, Ventas y Cuenta Corriente (e2e)', () =>
       await dataSource.query('DELETE FROM ventas_detalle WHERE id_venta = $1', [idVenta]);
       await dataSource.query('DELETE FROM ventas WHERE id_venta = $1', [idVenta]);
     }
-    if (idCliente) {
-      await dataSource.query(
-        'DELETE FROM movimientos_cta_cte WHERE id_cuenta_corriente IN (SELECT id_cuenta_corriente FROM cuentas_corrientes WHERE id_cliente = $1)',
-        [idCliente],
-      );
-      await dataSource.query('DELETE FROM cuentas_corrientes WHERE id_cliente = $1', [idCliente]);
-      await dataSource.query('DELETE FROM clientes WHERE id_cliente = $1', [idCliente]);
-    }
+    if (idCliente) await limpiarCliente(dataSource, idCliente);
     if (idProducto) {
       await dataSource.query('DELETE FROM movimientos_stock WHERE id_producto = $1', [idProducto]);
       await dataSource.query('DELETE FROM productos WHERE id_producto = $1', [idProducto]);
@@ -59,26 +53,14 @@ describe('Sprint 4 – Fase 0: Clientes, Ventas y Cuenta Corriente (e2e)', () =>
   });
 
   it('da de alta un cliente y le crea automáticamente su cuenta corriente en cero', async () => {
-    const { body } = await request(app.getHttpServer())
-      .post('/clientes')
-      .auth(adminToken, { type: 'bearer' })
-      .send({
-        nombre: 'Cliente',
-        apellido: 'E2E',
-        dniCuit: sufijo,
-        email: `cliente.e2e.${sufijo}@example.com`,
-        telefono: '3810000000',
-      })
-      .expect(201);
-
-    idCliente = body.idCliente as number;
+    idCliente = await crearClientePersona(app, adminToken, sufijo, 'Ventas');
     expect(idCliente).toBeGreaterThan(0);
 
     const cuenta = await request(app.getHttpServer())
-      .get(`/cuentas-corrientes/${idCliente}`)
+      .get(`/cuentas-corrientes/cliente/${idCliente}/historial`)
       .auth(adminToken, { type: 'bearer' })
       .expect(200);
-    expect(Number(cuenta.body.saldo)).toBe(0);
+    expect(Number(cuenta.body.cuenta.saldo)).toBe(0);
   });
 
   it('registra una venta que descuenta stock, deja kardex e imputa la cuenta corriente', async () => {
@@ -130,10 +112,10 @@ describe('Sprint 4 – Fase 0: Clientes, Ventas y Cuenta Corriente (e2e)', () =>
     expect(movimientosStock[0].stock_resultante).toBe(STOCK_INICIAL - CANTIDAD_VENDIDA);
 
     const cuenta = await request(app.getHttpServer())
-      .get(`/cuentas-corrientes/${idCliente}`)
+      .get(`/cuentas-corrientes/cliente/${idCliente}/historial`)
       .auth(adminToken, { type: 'bearer' })
       .expect(200);
-    expect(Number(cuenta.body.saldo)).toBe(TOTAL_ESPERADO);
+    expect(Number(cuenta.body.cuenta.saldo)).toBe(TOTAL_ESPERADO);
     const movimientos = cuenta.body.movimientos as Array<{ tipo: string; monto: number }>;
     const imputacion = movimientos.find((m) => m.tipo === 'IMPUTACION_VENTA');
     expect(imputacion).toBeDefined();
@@ -164,16 +146,16 @@ describe('Sprint 4 – Fase 0: Clientes, Ventas y Cuenta Corriente (e2e)', () =>
   it('registra un pago manual que reduce el saldo de la cuenta corriente', async () => {
     const pago = 500;
     await request(app.getHttpServer())
-      .post(`/cuentas-corrientes/${idCliente}/pagos`)
+      .post(`/cuentas-corrientes/cliente/${idCliente}/pagos`)
       .auth(adminToken, { type: 'bearer' })
       .send({ monto: pago, observaciones: 'Pago parcial e2e' })
       .expect(201);
 
     const cuenta = await request(app.getHttpServer())
-      .get(`/cuentas-corrientes/${idCliente}`)
+      .get(`/cuentas-corrientes/cliente/${idCliente}/historial`)
       .auth(adminToken, { type: 'bearer' })
       .expect(200);
-    expect(Number(cuenta.body.saldo)).toBe(TOTAL_ESPERADO - pago);
+    expect(Number(cuenta.body.cuenta.saldo)).toBe(TOTAL_ESPERADO - pago);
 
     const movimientos = cuenta.body.movimientos as Array<{ tipo: string; monto: number }>;
     const movimientoPago = movimientos.find((m) => m.tipo === 'PAGO');
@@ -182,7 +164,7 @@ describe('Sprint 4 – Fase 0: Clientes, Ventas y Cuenta Corriente (e2e)', () =>
 
   it('rechaza un pago mayor al saldo adeudado', async () => {
     await request(app.getHttpServer())
-      .post(`/cuentas-corrientes/${idCliente}/pagos`)
+      .post(`/cuentas-corrientes/cliente/${idCliente}/pagos`)
       .auth(adminToken, { type: 'bearer' })
       .send({ monto: TOTAL_ESPERADO * 100 })
       .expect(400);

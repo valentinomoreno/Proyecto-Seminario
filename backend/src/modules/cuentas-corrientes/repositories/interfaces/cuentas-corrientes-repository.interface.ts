@@ -1,11 +1,15 @@
+import { QueryCuentasCorrientesDto } from '../../dto/cuenta-corriente.dto';
 import { CuentaCorriente } from '../../entities/cuenta-corriente.entity';
 
 export const CUENTAS_CORRIENTES_REPOSITORY = Symbol('CUENTAS_CORRIENTES_REPOSITORY');
 
 export interface ICuentasCorrientesRepository {
-  findAll(): Promise<CuentaCorriente[]>;
-  findByCliente(idCliente: number): Promise<CuentaCorriente | null>;
+  findAndCount(query: QueryCuentasCorrientesDto): Promise<[CuentaCorriente[], number]>;
   findById(id: number): Promise<CuentaCorriente | null>;
+  findByClienteId(clienteId: number): Promise<CuentaCorriente | null>;
+  /** Cuentas activas con saldo deudor, con el cliente (persona/empresa) cargado para los procesos programados. */
   findConSaldoDeudor(): Promise<CuentaCorriente[]>;
+  create(data: Partial<CuentaCorriente>): CuentaCorriente;
   save(cuenta: CuentaCorriente): Promise<CuentaCorriente>;
+  generateNextNumber(): Promise<string>;
 }

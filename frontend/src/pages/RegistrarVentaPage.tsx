@@ -4,7 +4,21 @@ import { api, getApiErrorMessage } from '../api/axios.instance';
 import type { Cliente } from '../types/cliente.types';
 import type { PaginatedResponse, Producto } from '../types/producto.types';
 import type { Venta, VentaPayload } from '../types/venta.types';
+import {
+  type ClienteResumen,
+  correoCliente,
+  documentoCliente,
+  nombreCliente,
+  telefonoCliente,
+} from '../utils/cliente';
 import { formatearMonto } from '../utils/formato';
+
+/** Documento, correo y teléfono del cliente en una sola línea. */
+function detalleContacto(cliente: ClienteResumen): string {
+  const partes = [documentoCliente(cliente), correoCliente(cliente), telefonoCliente(cliente)]
+    .filter((parte): parte is string => parte !== null);
+  return partes.length ? partes.join(' · ') : 'Sin datos de contacto';
+}
 
 interface ItemVenta {
   idProducto: number;
@@ -166,9 +180,7 @@ export function RegistrarVentaPage() {
               <div className="col-sm-4">
                 <div className="border rounded-3 p-3">
                   <div className="small text-muted">Cliente</div>
-                  <div className="fw-semibold">
-                    {ventaCreada.cliente.apellido}, {ventaCreada.cliente.nombre}
-                  </div>
+                  <div className="fw-semibold">{nombreCliente(ventaCreada.cliente)}</div>
                 </div>
               </div>
               <div className="col-sm-4">
@@ -242,16 +254,22 @@ export function RegistrarVentaPage() {
                 {clienteSeleccionado ? (
                   <div className="d-flex align-items-center justify-content-between border rounded-3 p-3 bg-light">
                     <div>
-                      <div className="fw-bold text-dark">
-                        {clienteSeleccionado.apellido}, {clienteSeleccionado.nombre}
-                      </div>
-                      <small className="text-muted">
-                        {clienteSeleccionado.dniCuit} · {clienteSeleccionado.email}
-                      </small>
+                      <span className={`badge mb-1 ${clienteSeleccionado.tipo === 'PERSONA' ? 'bg-light-primary text-primary' : 'bg-light-secondary text-secondary'}`}>
+                        {clienteSeleccionado.tipo === 'PERSONA' ? 'Particular' : 'Empresa'}
+                      </span>
+                      <div className="fw-bold text-dark">{nombreCliente(clienteSeleccionado)}</div>
+                      <small className="text-muted">{detalleContacto(clienteSeleccionado)}</small>
                       <div className="mt-1">
-                        <span className={`badge ${Number(clienteSeleccionado.saldoCuentaCorriente) > 0 ? 'bg-light-danger text-danger' : 'bg-light-success text-success'}`}>
-                          Saldo: $ {formatearMonto(clienteSeleccionado.saldoCuentaCorriente)}
-                        </span>
+                        {clienteSeleccionado.estadoCuenta === 'ACTIVA' && clienteSeleccionado.cuentaCorriente ? (
+                          <span className={`badge ${Number(clienteSeleccionado.cuentaCorriente.saldo) > 0 ? 'bg-light-danger text-danger' : 'bg-light-success text-success'}`}>
+                            Saldo: $ {formatearMonto(clienteSeleccionado.cuentaCorriente.saldo)}
+                          </span>
+                        ) : (
+                          <span className="badge bg-light-warning text-warning">
+                            <i className="ti ti-alert-triangle me-1" />
+                            Sin cuenta corriente activa
+                          </span>
+                        )}
                       </div>
                     </div>
                     <button
@@ -271,7 +289,7 @@ export function RegistrarVentaPage() {
                       <input
                         type="text"
                         className="form-control border-start-0 ps-0"
-                        placeholder="Buscar cliente por nombre, apellido, DNI/CUIT o email…"
+                        placeholder="Buscar cliente por DNI, CUIL, CUIT, apellido o razón social…"
                         aria-label="Buscar cliente"
                         value={buscarCliente}
                         onChange={(e) => setBuscarCliente(e.target.value)}
@@ -295,8 +313,11 @@ export function RegistrarVentaPage() {
                           onClick={() => seleccionarCliente(cliente)}
                         >
                           <span>
-                            <span className="fw-semibold">{cliente.apellido}, {cliente.nombre}</span>
-                            <small className="text-muted d-block">{cliente.dniCuit} · {cliente.email}</small>
+                            <span className="fw-semibold">{nombreCliente(cliente)}</span>
+                            <span className={`badge ms-2 ${cliente.tipo === 'PERSONA' ? 'bg-light-primary text-primary' : 'bg-light-secondary text-secondary'}`}>
+                              {cliente.tipo === 'PERSONA' ? 'Particular' : 'Empresa'}
+                            </span>
+                            <small className="text-muted d-block">{detalleContacto(cliente)}</small>
                           </span>
                           <i className="ti ti-chevron-right text-muted" />
                         </button>
@@ -461,9 +482,7 @@ export function RegistrarVentaPage() {
                 <div className="d-flex justify-content-between mb-2">
                   <span className="text-muted">Cliente</span>
                   <span className="fw-semibold text-end">
-                    {clienteSeleccionado
-                      ? `${clienteSeleccionado.apellido}, ${clienteSeleccionado.nombre}`
-                      : 'Sin seleccionar'}
+                    {clienteSeleccionado ? nombreCliente(clienteSeleccionado) : 'Sin seleccionar'}
                   </span>
                 </div>
                 <div className="d-flex justify-content-between mb-2">

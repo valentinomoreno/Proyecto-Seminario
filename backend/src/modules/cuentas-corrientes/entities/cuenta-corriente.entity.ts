@@ -1,22 +1,43 @@
-import { Column, Entity, JoinColumn, OneToMany, OneToOne, PrimaryGeneratedColumn } from 'typeorm';
-import { decimalTransformer } from '../../../common/database/decimal.transformer';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  JoinColumn,
+  OneToMany,
+  OneToOne,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 import { Cliente } from '../../clientes/entities/cliente.entity';
 import { MovimientoCtaCte } from './movimiento-cta-cte.entity';
+
+const decimalTransformer = {
+  to: (value: number) => value,
+  from: (value: string) => Number(value),
+};
 
 @Entity('cuentas_corrientes')
 export class CuentaCorriente {
   @PrimaryGeneratedColumn({ name: 'id_cuenta_corriente' })
   idCuentaCorriente: number;
 
-  @OneToOne(() => Cliente, (cliente) => cliente.cuentaCorriente, { nullable: false })
-  @JoinColumn({ name: 'id_cliente' })
-  cliente: Cliente;
+  @Column({ name: 'numero_cuenta', type: 'varchar', length: 20, unique: true })
+  numeroCuenta: string;
 
-  @Column({ type: 'numeric', precision: 12, scale: 2, default: 0, transformer: decimalTransformer })
+  @Column({ type: 'numeric', precision: 14, scale: 2, default: 0, transformer: decimalTransformer })
   saldo: number;
 
-  @Column({ name: 'fecha_ultimo_movimiento', type: 'timestamptz', nullable: true })
-  fechaUltimoMovimiento: Date | null;
+  @Column({ default: true })
+  activa: boolean;
+
+  @CreateDateColumn({ name: 'fecha_alta', type: 'timestamptz' })
+  fechaAlta: Date;
+
+  @Column({ name: 'fecha_baja', type: 'timestamptz', nullable: true })
+  fechaBaja: Date | null;
+
+  @OneToOne(() => Cliente, (cliente) => cliente.cuentaCorriente, { nullable: false, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'id_cliente' })
+  cliente: Cliente;
 
   @OneToMany(() => MovimientoCtaCte, (movimiento) => movimiento.cuentaCorriente)
   movimientos: MovimientoCtaCte[];

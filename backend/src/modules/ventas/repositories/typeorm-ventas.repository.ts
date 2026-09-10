@@ -6,7 +6,7 @@ import { Venta } from '../entities/venta.entity';
 import { IVentasRepository } from './interfaces/ventas-repository.interface';
 
 const RELACIONES_COMPLETAS = {
-  cliente: true,
+  cliente: { persona: true, empresa: true },
   empleado: { persona: true },
   detalles: { producto: true },
 } as const;
@@ -24,6 +24,8 @@ export class TypeOrmVentasRepository implements IVentasRepository {
     const builder = this.ormRepository
       .createQueryBuilder('venta')
       .leftJoinAndSelect('venta.cliente', 'cliente')
+      .leftJoinAndSelect('cliente.persona', 'clientePersona')
+      .leftJoinAndSelect('cliente.empresa', 'clienteEmpresa')
       .leftJoinAndSelect('venta.empleado', 'empleado')
       .leftJoinAndSelect('empleado.persona', 'persona')
       .leftJoinAndSelect('venta.detalles', 'detalles')

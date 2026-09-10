@@ -4,13 +4,13 @@ import { DataSource } from 'typeorm';
 import request = require('supertest');
 import { AppModule } from '../src/app.module';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
+import { crearClientePersona, limpiarCliente } from './clientes.e2e-helper';
 
 describe('Sprint 4 – Fase 2: procesos programados de cuenta corriente (e2e)', () => {
   let app: INestApplication;
   let dataSource: DataSource;
   let adminToken: string;
   let idCliente: number;
-  let idCuentaCorriente: number;
 
   const SALDO_INICIAL = 100000;
   const SALDO_CON_MORA = 110000;
@@ -32,28 +32,17 @@ describe('Sprint 4 – Fase 2: procesos programados de cuenta corriente (e2e)', 
     adminToken = login.body.accessToken as string;
 
     const sufijo = Date.now().toString().slice(-8);
-    const cliente = await request(app.getHttpServer())
-      .post('/clientes')
-      .auth(adminToken, { type: 'bearer' })
-      .send({ nombre: 'Cliente', apellido: 'Mora', dniCuit: sufijo, email: `mora.${sufijo}@example.com` })
-      .expect(201);
-    idCliente = cliente.body.idCliente as number;
+    idCliente = await crearClientePersona(app, adminToken, sufijo, 'Mora');
 
     // Dejamos la cuenta con el saldo impago exacto del criterio de aceptación del sprint.
-    const cuentas = await dataSource.query<Array<{ id_cuenta_corriente: number }>>(
-      'UPDATE cuentas_corrientes SET saldo = $1 WHERE id_cliente = $2 RETURNING id_cuenta_corriente',
-      [SALDO_INICIAL, idCliente],
-    );
-    idCuentaCorriente = cuentas[0].id_cuenta_corriente;
+    await dataSource.query('UPDATE cuentas_corrientes SET saldo = $1 WHERE id_cliente = $2', [
+      SALDO_INICIAL,
+      idCliente,
+    ]);
   });
 
   afterAll(async () => {
-    if (idCliente) {
-      await dataSource.query('DELETE FROM avisos_cobro_enviados WHERE id_cliente = $1', [idCliente]);
-      await dataSource.query('DELETE FROM movimientos_cta_cte WHERE id_cuenta_corriente = $1', [idCuentaCorriente]);
-      await dataSource.query('DELETE FROM cuentas_corrientes WHERE id_cliente = $1', [idCliente]);
-      await dataSource.query('DELETE FROM clientes WHERE id_cliente = $1', [idCliente]);
-    }
+    if (idCliente) await limpiarCliente(dataSource, idCliente);
     await app.close();
   });
 
@@ -61,13 +50,13 @@ describe('Sprint 4 – Fase 2: procesos programados de cuenta corriente (e2e)', 
     await request(app.getHttpServer())
       .post('/notificaciones/mora/ejecutar-ahora')
       .auth(adminToken, { type: 'bearer' })
-      .expect(201);
+      .expect(200);
 
     const cuenta = await request(app.getHttpServer())
-      .get(`/cuentas-corrientes/${idCliente}`)
+      .get(`/cuentas-corrientes/cliente/${idCliente}/historial`)
       .auth(adminToken, { type: 'bearer' })
       .expect(200);
-    expect(Number(cuenta.body.saldo)).toBe(SALDO_CON_MORA);
+    expect(Number(cuenta.body.cuenta.saldo)).toBe(SALDO_CON_MORA);
 
     const movimientos = cuenta.body.movimientos as Array<{ tipo: string; monto: number; saldoResultante: number }>;
     const mora = movimientos.find((m) => m.tipo === 'MORA');
@@ -80,13 +69,13 @@ describe('Sprint 4 – Fase 2: procesos programados de cuenta corriente (e2e)', 
     await request(app.getHttpServer())
       .post('/notificaciones/mora/ejecutar-ahora')
       .auth(adminToken, { type: 'bearer' })
-      .expect(201);
+      .expect(200);
 
     const cuenta = await request(app.getHttpServer())
-      .get(`/cuentas-corrientes/${idCliente}`)
+      .get(`/cuentas-corrientes/cliente/${idCliente}/historial`)
       .auth(adminToken, { type: 'bearer' })
       .expect(200);
-    expect(Number(cuenta.body.saldo)).toBe(SALDO_CON_MORA);
+    expect(Number(cuenta.body.cuenta.saldo)).toBe(SALDO_CON_MORA);
 
     const movimientos = cuenta.body.movimientos as Array<{ tipo: string }>;
     expect(movimientos.filter((m) => m.tipo === 'MORA')).toHaveLength(1);
@@ -96,13 +85,13 @@ describe('Sprint 4 – Fase 2: procesos programados de cuenta corriente (e2e)', 
     const primera = await request(app.getHttpServer())
       .post('/notificaciones/avisos-cobro/ejecutar-ahora')
       .auth(adminToken, { type: 'bearer' })
-      .expect(201);
+      .expect(200);
     expect(primera.body.enviados).toBeGreaterThanOrEqual(1);
 
     const segunda = await request(app.getHttpServer())
       .post('/notificaciones/avisos-cobro/ejecutar-ahora')
       .auth(adminToken, { type: 'bearer' })
-      .expect(201);
+      .expect(200);
     expect(segunda.body.enviados).toBe(0);
     expect(segunda.body.omitidos).toBeGreaterThanOrEqual(1);
   });

@@ -1,8 +1,7 @@
 import * as bcrypt from 'bcrypt';
 import { DeepPartial, EntityManager, ObjectLiteral } from 'typeorm';
 import { NombreRol } from '../common/enums/nombre-rol.enum';
-import { Cliente } from '../modules/clientes/entities/cliente.entity';
-import { CuentaCorriente } from '../modules/cuentas-corrientes/entities/cuenta-corriente.entity';
+import { CondicionIva } from '../modules/clientes/entities/condicion-iva.entity';
 import { Categoria } from '../modules/productos/entities/categoria.entity';
 import { Deposito } from '../modules/productos/entities/deposito.entity';
 import { Estante } from '../modules/productos/entities/estante.entity';
@@ -66,6 +65,14 @@ async function seed(): Promise<void> {
       nombre: NombreRol.EMPLEADO_VENTA,
       descripcion: 'Acceso operativo al catálogo y las ventas.',
     });
+
+    for (const condicion of [
+      { codigo: 'CONSUMIDOR_FINAL', nombre: 'Consumidor Final' },
+      { codigo: 'MONOTRIBUTO', nombre: 'Monotributo' },
+      { codigo: 'RESPONSABLE_INSCRIPTO', nombre: 'Responsable Inscripto' },
+    ]) {
+      await restoreOrCreate(manager, CondicionIva, { codigo: condicion.codigo }, condicion);
+    }
 
     // 1. Usuario Administrador
     const personaAdmin = await restoreOrCreate(manager, Persona, { dni: '00000000' }, {
@@ -142,24 +149,9 @@ async function seed(): Promise<void> {
         });
       }
     }
-
-    // 4. Clientes de prueba con su cuenta corriente (para probar ventas, devoluciones y mora)
-    const cuentasRepository = manager.getRepository(CuentaCorriente);
-    for (const datos of [
-      { nombre: 'Juan', apellido: 'Pérez', dniCuit: '20304050', email: 'juan.perez@example.com', telefono: '3814000001' },
-      { nombre: 'Ana', apellido: 'Gómez', dniCuit: '27123456', email: 'ana.gomez@example.com', telefono: '3814000002' },
-    ]) {
-      const cliente = await restoreOrCreate(manager, Cliente, { dniCuit: datos.dniCuit }, { ...datos, activo: true });
-      const cuentaExistente = await cuentasRepository.findOne({
-        where: { cliente: { idCliente: cliente.idCliente } },
-      });
-      if (!cuentaExistente) {
-        await cuentasRepository.save(cuentasRepository.create({ cliente, saldo: 0 }));
-      }
-    }
   });
   await AppDataSource.destroy();
-  console.info('Seed inicial completado: usuarios Administrador y Vendedor, catálogo base y clientes de prueba.');
+  console.info('Seed inicial completado con usuarios Administrador y Vendedor.');
 }
 
 seed().catch(async (error: unknown) => {

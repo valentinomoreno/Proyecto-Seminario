@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { MoreThan, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
+import { QueryCuentasCorrientesDto } from '../dto/cuenta-corriente.dto';
 import { CuentaCorriente } from '../entities/cuenta-corriente.entity';
 import { ICuentasCorrientesRepository } from './interfaces/cuentas-corrientes-repository.interface';
 
@@ -11,36 +12,64 @@ export class TypeOrmCuentasCorrientesRepository implements ICuentasCorrientesRep
     private readonly ormRepository: Repository<CuentaCorriente>,
   ) {}
 
-  async findAll(): Promise<CuentaCorriente[]> {
-    return this.ormRepository.find({
-      relations: { cliente: true },
-      order: { saldo: 'DESC' },
-    });
-  }
-
-  async findByCliente(idCliente: number): Promise<CuentaCorriente | null> {
-    return this.ormRepository.findOne({
-      where: { cliente: { idCliente } },
-      relations: { cliente: true },
-    });
+  async findAndCount(query: QueryCuentasCorrientesDto): Promise<[CuentaCorriente[], number]> {
+    const page = query.page ?? 1;
+    const limit = Math.min(query.limit ?? 10, 100);
+    return this.ormRepository
+      .createQueryBuilder('cuenta')
+      .innerJoinAndSelect('cuenta.cliente', 'cliente', 'cliente.fecha_baja IS NULL')
+      .leftJoinAndSelect('cliente.condicionIva', 'condicionIva')
+      .leftJoinAndSelect('cliente.persona', 'persona')
+      .leftJoinAndSelect('cliente.empresa', 'empresa')
+      .orderBy('cuenta.idCuentaCorriente', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
   }
 
   async findById(id: number): Promise<CuentaCorriente | null> {
+    return this.ormRepository
+      .createQueryBuilder('cuenta')
+      .innerJoinAndSelect('cuenta.cliente', 'cliente', 'cliente.fecha_baja IS NULL')
+      .leftJoinAndSelect('cliente.condicionIva', 'condicionIva')
+      .leftJoinAndSelect('cliente.persona', 'persona')
+      .leftJoinAndSelect('cliente.empresa', 'empresa')
+      .where('cuenta.idCuentaCorriente = :id', { id })
+      .getOne();
+  }
+
+  async findByClienteId(clienteId: number): Promise<CuentaCorriente | null> {
     return this.ormRepository.findOne({
-      where: { idCuentaCorriente: id },
+      where: { cliente: { idCliente: clienteId } },
       relations: { cliente: true },
     });
   }
 
   async findConSaldoDeudor(): Promise<CuentaCorriente[]> {
-    return this.ormRepository.find({
-      where: { saldo: MoreThan(0) },
-      relations: { cliente: true },
-      order: { saldo: 'DESC' },
-    });
+    return this.ormRepository
+      .createQueryBuilder('cuenta')
+      .innerJoinAndSelect('cuenta.cliente', 'cliente', 'cliente.fecha_baja IS NULL')
+      .leftJoinAndSelect('cliente.persona', 'persona')
+      .leftJoinAndSelect('cliente.empresa', 'empresa')
+      .where('cuenta.saldo > 0')
+      .andWhere('cuenta.activa = true')
+      .orderBy('cuenta.idCuentaCorriente', 'ASC')
+      .getMany();
+  }
+
+  create(data: Partial<CuentaCorriente>): CuentaCorriente {
+    return this.ormRepository.create(data);
   }
 
   async save(cuenta: CuentaCorriente): Promise<CuentaCorriente> {
     return this.ormRepository.save(cuenta);
+  }
+
+  async generateNextNumber(): Promise<string> {
+    const result = await this.ormRepository.query<Array<{ nextval: string }>>(
+      "SELECT nextval('cuenta_corriente_numero_seq') AS nextval",
+    );
+    const nextValue = result[0]?.nextval ?? '1';
+    return `CC-${String(nextValue).padStart(6, '0')}`;
   }
 }

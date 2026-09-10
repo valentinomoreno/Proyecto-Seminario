@@ -1,34 +1,51 @@
-import { Column, DeleteDateColumn, Entity, Index, OneToOne, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  DeleteDateColumn,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  OneToOne,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 import { CuentaCorriente } from '../../cuentas-corrientes/entities/cuenta-corriente.entity';
+import { ClienteEmpresa } from './cliente-empresa.entity';
+import { ClientePersona } from './cliente-persona.entity';
+import { CondicionIva } from './condicion-iva.entity';
+
+export enum TipoCliente {
+  PERSONA = 'PERSONA',
+  EMPRESA = 'EMPRESA',
+}
 
 @Entity('clientes')
 export class Cliente {
   @PrimaryGeneratedColumn({ name: 'id_cliente' })
   idCliente: number;
 
-  @Index()
-  @Column({ type: 'varchar', length: 80 })
-  nombre: string;
+  @Column({ type: 'enum', enum: TipoCliente })
+  tipo: TipoCliente;
 
-  @Column({ type: 'varchar', length: 80 })
-  apellido: string;
-
-  @Index({ unique: true })
-  @Column({ name: 'dni_cuit', type: 'varchar', length: 11 })
-  dniCuit: string;
-
-  @Index({ unique: true })
-  @Column({ type: 'varchar', length: 120 })
-  email: string;
-
-  @Column({ type: 'varchar', length: 30, nullable: true })
+  @Column({ type: 'varchar', length: 40, nullable: true })
   telefono: string | null;
 
-  @Column({ default: true })
-  activo: boolean;
+  @Column({ type: 'varchar', length: 160, nullable: true })
+  correo: string | null;
 
-  @OneToOne(() => CuentaCorriente, (cuenta) => cuenta.cliente)
-  cuentaCorriente: CuentaCorriente;
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  direccion: string | null;
+
+  @ManyToOne(() => CondicionIva, (condicionIva) => condicionIva.clientes, { nullable: false, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'id_condicion_iva' })
+  condicionIva: CondicionIva;
+
+  @OneToOne(() => ClientePersona, (persona) => persona.cliente)
+  persona: ClientePersona | null;
+
+  @OneToOne(() => ClienteEmpresa, (empresa) => empresa.cliente)
+  empresa: ClienteEmpresa | null;
+
+  @OneToOne(() => CuentaCorriente, (cuentaCorriente) => cuentaCorriente.cliente)
+  cuentaCorriente: CuentaCorriente | null;
 
   @DeleteDateColumn({ name: 'fecha_baja', type: 'timestamptz', nullable: true })
   fechaBaja: Date | null;

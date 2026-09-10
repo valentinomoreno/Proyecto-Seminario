@@ -69,9 +69,9 @@ export class VentasService {
     const empleado = await manager.getRepository(Empleado).findOneBy({ idEmpleado });
     if (!empleado) throw new NotFoundException('Empleado no encontrado.');
 
+    // findOneBy excluye los dados de baja lógicamente, así que basta con que exista.
     const cliente = await manager.getRepository(Cliente).findOneBy({ idCliente: dto.idCliente });
-    if (!cliente) throw new NotFoundException('Cliente no encontrado.');
-    if (!cliente.activo) throw new BadRequestException('El cliente se encuentra inactivo.');
+    if (!cliente) throw new NotFoundException('Cliente no encontrado o dado de baja.');
 
     const items = this.consolidarItems(dto);
     const detalles: VentaDetalle[] = [];
@@ -181,7 +181,6 @@ export class VentasService {
     );
 
     cuenta.saldo = saldoResultante;
-    cuenta.fechaUltimoMovimiento = new Date();
     await manager.getRepository(CuentaCorriente).save(cuenta);
   }
 
@@ -194,9 +193,18 @@ export class VentasService {
       estado: venta.estado,
       cliente: venta.cliente && {
         idCliente: venta.cliente.idCliente,
-        nombre: venta.cliente.nombre,
-        apellido: venta.cliente.apellido,
-        email: venta.cliente.email,
+        tipo: venta.cliente.tipo,
+        correo: venta.cliente.correo,
+        persona: venta.cliente.persona && {
+          nombre: venta.cliente.persona.nombre,
+          apellido: venta.cliente.persona.apellido,
+          dni: venta.cliente.persona.dni,
+          cuil: venta.cliente.persona.cuil,
+        },
+        empresa: venta.cliente.empresa && {
+          razonSocial: venta.cliente.empresa.razonSocial,
+          cuit: venta.cliente.empresa.cuit,
+        },
       },
       empleado: venta.empleado && {
         idEmpleado: venta.empleado.idEmpleado,

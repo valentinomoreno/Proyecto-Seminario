@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DataSource, EntityManager } from 'typeorm';
+import { TipoCliente } from '../../clientes/entities/cliente.entity';
 import { CuentaCorriente } from '../../cuentas-corrientes/entities/cuenta-corriente.entity';
 import { MovimientoCtaCte } from '../../cuentas-corrientes/entities/movimiento-cta-cte.entity';
 import { TipoMovimientoCtaCte } from '../../cuentas-corrientes/enums/tipo-movimiento-cta-cte.enum';
@@ -24,19 +25,28 @@ describe('MoraService (proceso programado de mora del 10%)', () => {
   const cuentaDeudora = (saldo: number): CuentaCorriente =>
     ({
       idCuentaCorriente: 1,
+      numeroCuenta: 'CC-000001',
       saldo,
-      fechaUltimoMovimiento: null,
-      cliente: { idCliente: 7, nombre: 'Ana', apellido: 'Gómez', email: 'ana@example.com' },
+      activa: true,
+      cliente: {
+        idCliente: 7,
+        tipo: TipoCliente.PERSONA,
+        correo: 'ana@example.com',
+        persona: { nombre: 'Ana', apellido: 'Gómez' },
+        empresa: null,
+      },
       movimientos: [],
     }) as unknown as CuentaCorriente;
 
   beforeEach(async () => {
     mockCuentasRepo = {
-      findAll: jest.fn(),
-      findByCliente: jest.fn(),
+      findAndCount: jest.fn(),
       findById: jest.fn(),
+      findByClienteId: jest.fn(),
       findConSaldoDeudor: jest.fn(),
+      create: jest.fn(),
       save: jest.fn(),
+      generateNextNumber: jest.fn(),
     };
 
     mockMovimientosRepo = {
@@ -115,7 +125,6 @@ describe('MoraService (proceso programado de mora del 10%)', () => {
 
     const cuentaGuardada = mockCuentasManagerRepo.save.mock.calls[0][0] as CuentaCorriente;
     expect(cuentaGuardada.saldo).toBe(110000);
-    expect(cuentaGuardada.fechaUltimoMovimiento).toBeInstanceOf(Date);
   });
 
   it('el día 15 omite la cuenta si ya tiene una mora aplicada este mes', async () => {

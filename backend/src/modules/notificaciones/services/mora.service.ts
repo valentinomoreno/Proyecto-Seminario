@@ -109,7 +109,6 @@ export class MoraService {
       await movimientosRepository.save(movimiento);
 
       cuenta.saldo = saldoResultante;
-      cuenta.fechaUltimoMovimiento = new Date();
       await cuentasRepository.save(cuenta);
 
       return true;

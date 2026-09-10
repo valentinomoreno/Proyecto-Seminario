@@ -1,3 +1,5 @@
+import type { Venta, VentaCliente } from './venta.types';
+
 export interface NotaCredito {
   idNotaCredito: number;
   numero: string;
@@ -6,11 +8,10 @@ export interface NotaCredito {
   estado: string;
 }
 
-export interface DevolucionVenta {
-  idVenta: number;
-  numeroComprobante: string;
-  fecha: string;
-}
+/** Datos de la venta original; el cliente llega con el modelo del módulo de clientes. */
+export type DevolucionVenta = Pick<Venta, 'idVenta' | 'numeroComprobante' | 'fecha'> & {
+  cliente?: VentaCliente;
+};
 
 export interface DevolucionProducto {
   idProducto: number;

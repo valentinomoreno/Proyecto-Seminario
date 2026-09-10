@@ -1,7 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/AppLayout';
 import { CatalogoPage } from './pages/CatalogoPage';
-import { ClientesPage } from './pages/ClientesPage';
+import { ClientesListPage } from './pages/ClientesListPage';
 import { CuentasCorrientesPage } from './pages/CuentasCorrientesPage';
 import { DetalleDeudaPage } from './pages/DetalleDeudaPage';
 import { FormClientePage } from './pages/FormClientePage';
@@ -18,7 +18,7 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route path="/catalogo" element={<CatalogoPage />} />
-          <Route path="/clientes" element={<ClientesPage />} />
+          <Route path="/clientes" element={<ClientesListPage />} />
           <Route path="/clientes/nuevo" element={<FormClientePage />} />
           <Route path="/clientes/:id/editar" element={<FormClientePage />} />
           <Route path="/ventas/nueva" element={<RegistrarVentaPage />} />

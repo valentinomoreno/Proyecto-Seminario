@@ -1,7 +1,18 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { DataSource } from 'typeorm';
-import { throwFriendlyDatabaseError } from '../../../common/database/database-error.util';
-import { RegistrarPagoDto } from '../dto/cuenta-corriente.dto';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { DataSource, QueryFailedError } from 'typeorm';
+import { Cliente, TipoCliente } from '../../clientes/entities/cliente.entity';
+import {
+  CLIENTES_REPOSITORY,
+  IClientesRepository,
+} from '../../clientes/repositories/interfaces/clientes-repository.interface';
+import { Empleado } from '../../usuarios/entities/empleado.entity';
+import { CreateCuentaCorrienteDto, QueryCuentasCorrientesDto, RegistrarPagoDto } from '../dto/cuenta-corriente.dto';
 import { CuentaCorriente } from '../entities/cuenta-corriente.entity';
 import { MovimientoCtaCte } from '../entities/movimiento-cta-cte.entity';
 import { TipoMovimientoCtaCte } from '../enums/tipo-movimiento-cta-cte.enum';
@@ -14,83 +25,148 @@ import {
   MOVIMIENTOS_CTA_CTE_REPOSITORY,
 } from '../repositories/interfaces/movimientos-cta-cte-repository.interface';
 
+interface PostgresError {
+  code?: string;
+}
+
 @Injectable()
 export class CuentasCorrientesService {
   constructor(
-    @Inject(CUENTAS_CORRIENTES_REPOSITORY) private readonly repository: ICuentasCorrientesRepository,
-    @Inject(MOVIMIENTOS_CTA_CTE_REPOSITORY) private readonly movimientosRepository: IMovimientosCtaCteRepository,
+    @Inject(CUENTAS_CORRIENTES_REPOSITORY)
+    private readonly repository: ICuentasCorrientesRepository,
+    @Inject(CLIENTES_REPOSITORY)
+    private readonly clientesRepository: IClientesRepository,
+    @Inject(MOVIMIENTOS_CTA_CTE_REPOSITORY)
+    private readonly movimientosRepository: IMovimientosCtaCteRepository,
     private readonly dataSource: DataSource,
   ) {}
 
-  async findAll() {
-    const cuentas = await this.repository.findAll();
-    return cuentas.map((cuenta) => this.toResponse(cuenta));
+  async findAll(query: QueryCuentasCorrientesDto) {
+    const page = query.page ?? 1;
+    const limit = Math.min(query.limit ?? 10, 100);
+    const [cuentas, total] = await this.repository.findAndCount(query);
+    return {
+      data: cuentas.map((cuenta) => this.toResponse(cuenta)),
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
   }
 
-  async findByCliente(idCliente: number) {
-    const cuenta = await this.repository.findByCliente(idCliente);
-    if (!cuenta) throw new NotFoundException('Cuenta corriente no encontrada.');
+  async create(dto: CreateCuentaCorrienteDto) {
+    const cliente = await this.clientesRepository.findById(dto.clienteId);
+    if (!cliente) throw new NotFoundException('Cliente no encontrado.');
 
+    const existing = await this.repository.findByClienteId(dto.clienteId);
+    if (existing?.activa) {
+      throw new ConflictException('El cliente ya tiene una cuenta corriente activa.');
+    }
+
+    try {
+      if (existing) {
+        existing.activa = true;
+        existing.fechaBaja = null;
+        existing.saldo = 0;
+        await this.repository.save(existing);
+        return this.toResponse(await this.requireCuenta(existing.idCuentaCorriente));
+      }
+
+      const numeroCuenta = await this.repository.generateNextNumber();
+      const cuenta = this.repository.create({ numeroCuenta, saldo: 0, activa: true, fechaBaja: null, cliente });
+      const saved = await this.repository.save(cuenta);
+      return this.toResponse(await this.requireCuenta(saved.idCuentaCorriente));
+    } catch (error) {
+      if (error instanceof QueryFailedError && (error.driverError as PostgresError).code === '23505') {
+        throw new ConflictException('El cliente ya tiene una cuenta corriente registrada.');
+      }
+      throw error;
+    }
+  }
+
+  /** Cuenta del cliente junto con su historial de movimientos (más recientes primero). */
+  async findHistorialByCliente(idCliente: number) {
+    const cuenta = await this.requireCuentaDeCliente(idCliente);
     const movimientos = await this.movimientosRepository.findByCuenta(cuenta.idCuentaCorriente);
-
     return {
-      ...this.toResponse(cuenta),
+      cuenta: this.toResponse(cuenta),
       movimientos: movimientos.map((movimiento) => this.toMovimientoResponse(movimiento)),
     };
   }
 
+  /**
+   * Pago manual imputado sobre la cuenta corriente: registra un MovimientoCtaCte
+   * de tipo PAGO (monto negativo) y descuenta el saldo de forma atómica.
+   */
   async registrarPago(idCliente: number, dto: RegistrarPagoDto, idEmpleado: number | null) {
-    const cuenta = await this.repository.findByCliente(idCliente);
-    if (!cuenta) throw new NotFoundException('Cuenta corriente no encontrada.');
+    const cuentaActual = await this.requireCuentaDeCliente(idCliente);
+    if (!cuentaActual.activa) {
+      throw new ConflictException('No se pueden registrar pagos sobre una cuenta corriente inactiva.');
+    }
 
-    return this.dataSource.transaction(async (manager) => {
+    const movimiento = await this.dataSource.transaction(async (manager) => {
       const cuentasRepository = manager.getRepository(CuentaCorriente);
       const movimientosRepository = manager.getRepository(MovimientoCtaCte);
 
-      // Bloqueo pesimista: evita carreras con el cron de mora sobre el mismo saldo.
-      const cuentaBloqueada = await cuentasRepository.findOne({
-        where: { idCuentaCorriente: cuenta.idCuentaCorriente },
+      // Bloqueo pesimista por PK: el filtro debe ser sobre la clave primaria, nunca
+      // sobre la relación `cliente`, porque el LEFT JOIN resultante rompe el FOR UPDATE.
+      const cuenta = await cuentasRepository.findOne({
+        where: { idCuentaCorriente: cuentaActual.idCuentaCorriente },
         lock: { mode: 'pessimistic_write' },
       });
-      if (!cuentaBloqueada) throw new NotFoundException('Cuenta corriente no encontrada.');
+      if (!cuenta) throw new NotFoundException('Cuenta corriente no encontrada.');
 
-      const saldoActual = this.redondear(Number(cuentaBloqueada.saldo));
-      const monto = this.redondear(dto.monto);
-
-      if (monto > saldoActual) {
+      const saldo = this.redondear(Number(cuenta.saldo));
+      const monto = this.redondear(Number(dto.monto));
+      if (monto > saldo) {
         throw new BadRequestException(
-          `El pago de $${monto.toFixed(2)} supera el saldo adeudado de $${saldoActual.toFixed(2)}.`,
+          `El pago de $${monto.toFixed(2)} supera el saldo pendiente de $${saldo.toFixed(2)}.`,
         );
       }
 
-      const saldoResultante = this.redondear(saldoActual - monto);
+      const saldoResultante = this.redondear(saldo - monto);
+      const guardado = await movimientosRepository.save(
+        movimientosRepository.create({
+          cuentaCorriente: cuenta,
+          tipo: TipoMovimientoCtaCte.PAGO,
+          monto: -monto,
+          saldoResultante,
+          idVenta: null,
+          empleado: idEmpleado === null ? null : manager.getRepository(Empleado).create({ idEmpleado }),
+          observaciones: dto.observaciones ?? null,
+        }),
+      );
 
-      const movimiento = movimientosRepository.create({
-        cuentaCorriente: cuentaBloqueada,
-        tipo: TipoMovimientoCtaCte.PAGO,
-        monto: -monto,
-        saldoResultante,
-        idVenta: null,
-        empleado: idEmpleado !== null ? { idEmpleado } : null,
-        observaciones: dto.observaciones?.trim() || null,
-      });
-
-      try {
-        const movimientoGuardado = await movimientosRepository.save(movimiento);
-
-        cuentaBloqueada.saldo = saldoResultante;
-        cuentaBloqueada.fechaUltimoMovimiento = new Date();
-        const cuentaActualizada = await cuentasRepository.save(cuentaBloqueada);
-        cuentaActualizada.cliente = cuenta.cliente;
-
-        return {
-          ...this.toResponse(cuentaActualizada),
-          movimiento: this.toMovimientoResponse(movimientoGuardado),
-        };
-      } catch (error) {
-        throwFriendlyDatabaseError(error);
-      }
+      cuenta.saldo = saldoResultante;
+      await cuentasRepository.save(cuenta);
+      return guardado;
     });
+
+    return {
+      cuenta: this.toResponse(await this.requireCuenta(cuentaActual.idCuentaCorriente)),
+      movimiento: this.toMovimientoResponse(movimiento),
+    };
+  }
+
+  async remove(id: number): Promise<void> {
+    const cuenta = await this.requireCuenta(id);
+    if (!cuenta.activa) throw new NotFoundException('Cuenta corriente no encontrada o inactiva.');
+    if (Number(cuenta.saldo) !== 0) {
+      throw new ConflictException('No se puede dar de baja una cuenta corriente con saldo distinto de cero.');
+    }
+    cuenta.activa = false;
+    cuenta.fechaBaja = new Date();
+    await this.repository.save(cuenta);
+  }
+
+  private async requireCuenta(id: number): Promise<CuentaCorriente> {
+    const cuenta = await this.repository.findById(id);
+    if (!cuenta) throw new NotFoundException('Cuenta corriente no encontrada.');
+    return cuenta;
+  }
+
+  /** Cuenta del cliente con todas sus relaciones cargadas para armar la respuesta. */
+  private async requireCuentaDeCliente(idCliente: number): Promise<CuentaCorriente> {
+    const cuenta = await this.repository.findByClienteId(idCliente);
+    if (!cuenta) throw new NotFoundException('El cliente no tiene una cuenta corriente asociada.');
+    return this.requireCuenta(cuenta.idCuentaCorriente);
   }
 
   private redondear(valor: number): number {
@@ -100,14 +176,12 @@ export class CuentasCorrientesService {
   private toResponse(cuenta: CuentaCorriente) {
     return {
       idCuentaCorriente: cuenta.idCuentaCorriente,
+      numeroCuenta: cuenta.numeroCuenta,
       saldo: cuenta.saldo,
-      fechaUltimoMovimiento: cuenta.fechaUltimoMovimiento ?? null,
-      cliente: {
-        idCliente: cuenta.cliente.idCliente,
-        nombre: cuenta.cliente.nombre,
-        apellido: cuenta.cliente.apellido,
-        email: cuenta.cliente.email,
-      },
+      estado: cuenta.activa ? 'ACTIVA' : 'INACTIVA',
+      fechaAlta: cuenta.fechaAlta,
+      fechaBaja: cuenta.fechaBaja,
+      cliente: this.toClienteSummary(cuenta.cliente),
     };
   }
 
@@ -115,10 +189,27 @@ export class CuentasCorrientesService {
     return {
       idMovimientoCtaCte: movimiento.idMovimientoCtaCte,
       tipo: movimiento.tipo,
-      monto: movimiento.monto,
-      saldoResultante: movimiento.saldoResultante,
+      monto: Number(movimiento.monto),
+      saldoResultante: Number(movimiento.saldoResultante),
       fecha: movimiento.fecha,
-      observaciones: movimiento.observaciones ?? null,
+      idVenta: movimiento.idVenta,
+      observaciones: movimiento.observaciones,
+    };
+  }
+
+  private toClienteSummary(cliente: Cliente) {
+    return {
+      idCliente: cliente.idCliente,
+      tipo: cliente.tipo,
+      nombreMostrar: cliente.tipo === TipoCliente.PERSONA
+        ? `${cliente.persona?.apellido ?? ''}, ${cliente.persona?.nombre ?? ''}`.replace(/^,\s*/, '').trim()
+        : cliente.empresa?.razonSocial ?? '',
+      documento: cliente.persona?.dni ?? cliente.empresa?.cuit ?? '',
+      condicionIva: cliente.condicionIva ? {
+        idCondicionIva: cliente.condicionIva.idCondicionIva,
+        codigo: cliente.condicionIva.codigo,
+        nombre: cliente.condicionIva.nombre,
+      } : null,
     };
   }
 }

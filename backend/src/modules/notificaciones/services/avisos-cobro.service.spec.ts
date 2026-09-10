@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { TipoCliente } from '../../clientes/entities/cliente.entity';
 import { CuentaCorriente } from '../../cuentas-corrientes/entities/cuenta-corriente.entity';
 import {
   CUENTAS_CORRIENTES_REPOSITORY,
@@ -16,22 +17,47 @@ describe('AvisosCobroService (proceso programado de avisos de cobro)', () => {
   let mockMailService: jest.Mocked<IMailService>;
   let mockAvisosRepo: { findOne: jest.Mock; create: jest.Mock; save: jest.Mock; delete: jest.Mock };
 
-  const cuentaDeudora = (idCuenta: number, idCliente: number, email: string, saldo: number): CuentaCorriente =>
+  const cuentaDeudora = (idCuenta: number, idCliente: number, correo: string | null, saldo: number): CuentaCorriente =>
     ({
       idCuentaCorriente: idCuenta,
+      numeroCuenta: `CC-00000${idCuenta}`,
       saldo,
-      fechaUltimoMovimiento: null,
-      cliente: { idCliente, nombre: 'Ana', apellido: 'Gómez', email },
+      activa: true,
+      cliente: {
+        idCliente,
+        tipo: TipoCliente.PERSONA,
+        correo,
+        persona: { nombre: 'Ana', apellido: 'Gómez' },
+        empresa: null,
+      },
+      movimientos: [],
+    }) as unknown as CuentaCorriente;
+
+  const cuentaDeudoraEmpresa = (idCuenta: number, idCliente: number, saldo: number): CuentaCorriente =>
+    ({
+      idCuentaCorriente: idCuenta,
+      numeroCuenta: `CC-00000${idCuenta}`,
+      saldo,
+      activa: true,
+      cliente: {
+        idCliente,
+        tipo: TipoCliente.EMPRESA,
+        correo: 'compras@repuestoscentro.com',
+        persona: null,
+        empresa: { razonSocial: 'Repuestos Centro S.A.' },
+      },
       movimientos: [],
     }) as unknown as CuentaCorriente;
 
   beforeEach(async () => {
     mockCuentasRepo = {
-      findAll: jest.fn(),
-      findByCliente: jest.fn(),
+      findAndCount: jest.fn(),
       findById: jest.fn(),
+      findByClienteId: jest.fn(),
       findConSaldoDeudor: jest.fn(),
+      create: jest.fn(),
       save: jest.fn(),
+      generateNextNumber: jest.fn(),
     };
 
     mockMailService = { enviar: jest.fn().mockResolvedValue(undefined) };
@@ -78,7 +104,31 @@ describe('AvisosCobroService (proceso programado de avisos de cobro)', () => {
     expect(primerMensaje.to).toBe('ana@example.com');
     expect(primerMensaje.subject).toContain('saldo pendiente');
     expect(primerMensaje.html).toContain('100000.00');
+    expect(primerMensaje.html).toContain('Ana Gómez');
     expect(mockMailService.enviar.mock.calls[1][0].to).toBe('juan@example.com');
+  });
+
+  it('saluda a los clientes empresa por su razón social', async () => {
+    mockCuentasRepo.findConSaldoDeudor.mockResolvedValue([cuentaDeudoraEmpresa(3, 11, 5000)]);
+
+    const resultado = await service.ejecutar();
+
+    expect(resultado).toEqual({ enviados: 1, omitidos: 0 });
+    expect(mockMailService.enviar.mock.calls[0][0].html).toContain('Repuestos Centro S.A.');
+  });
+
+  it('omite al cliente deudor que no tiene correo cargado', async () => {
+    mockCuentasRepo.findConSaldoDeudor.mockResolvedValue([
+      cuentaDeudora(1, 7, null, 100000),
+      cuentaDeudora(2, 9, 'juan@example.com', 2500.5),
+    ]);
+
+    const resultado = await service.ejecutar();
+
+    expect(resultado).toEqual({ enviados: 1, omitidos: 1 });
+    expect(mockMailService.enviar).toHaveBeenCalledTimes(1);
+    expect(mockMailService.enviar.mock.calls[0][0].to).toBe('juan@example.com');
+    expect(mockAvisosRepo.save).toHaveBeenCalledTimes(1);
   });
 
   it('no reenvía el aviso si ya se envió hoy al mismo cliente', async () => {

@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import request = require('supertest');
 import { AppModule } from '../src/app.module';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
+import { crearClientePersona, limpiarCliente } from './clientes.e2e-helper';
 
 describe('Sprint 4 – Fase 1: Devoluciones (e2e)', () => {
   let app: INestApplication;
@@ -37,17 +38,7 @@ describe('Sprint 4 – Fase 1: Devoluciones (e2e)', () => {
     }).expect(200);
     adminToken = login.body.accessToken as string;
 
-    const cliente = await request(app.getHttpServer())
-      .post('/clientes')
-      .auth(adminToken, { type: 'bearer' })
-      .send({
-        nombre: 'Cliente',
-        apellido: 'Devolucion',
-        dniCuit: sufijo,
-        email: `devolucion.${sufijo}@example.com`,
-      })
-      .expect(201);
-    idCliente = cliente.body.idCliente as number;
+    idCliente = await crearClientePersona(app, adminToken, sufijo, 'Devolucion');
 
     const [categorias, marcas, estantes] = await Promise.all([
       request(app.getHttpServer()).get('/categorias').auth(adminToken, { type: 'bearer' }).expect(200),
@@ -109,14 +100,7 @@ describe('Sprint 4 – Fase 1: Devoluciones (e2e)', () => {
       await dataSource.query('DELETE FROM ventas_detalle WHERE id_venta = $1', [idVenta]);
       await dataSource.query('DELETE FROM ventas WHERE id_venta = $1', [idVenta]);
     }
-    if (idCliente) {
-      await dataSource.query(
-        'DELETE FROM movimientos_cta_cte WHERE id_cuenta_corriente IN (SELECT id_cuenta_corriente FROM cuentas_corrientes WHERE id_cliente = $1)',
-        [idCliente],
-      );
-      await dataSource.query('DELETE FROM cuentas_corrientes WHERE id_cliente = $1', [idCliente]);
-      await dataSource.query('DELETE FROM clientes WHERE id_cliente = $1', [idCliente]);
-    }
+    if (idCliente) await limpiarCliente(dataSource, idCliente);
     if (idProducto) {
       await dataSource.query('DELETE FROM movimientos_stock WHERE id_producto = $1', [idProducto]);
       await dataSource.query('DELETE FROM productos WHERE id_producto = $1', [idProducto]);
@@ -141,9 +125,9 @@ describe('Sprint 4 – Fase 1: Devoluciones (e2e)', () => {
       .expect(200)).body.stock as number;
 
     const saldoAntes = Number((await request(app.getHttpServer())
-      .get(`/cuentas-corrientes/${idCliente}`)
+      .get(`/cuentas-corrientes/cliente/${idCliente}/historial`)
       .auth(adminToken, { type: 'bearer' })
-      .expect(200)).body.saldo);
+      .expect(200)).body.cuenta.saldo);
 
     const cantidadDevuelta = 2;
     const { body: devolucion } = await request(app.getHttpServer())
@@ -169,18 +153,18 @@ describe('Sprint 4 – Fase 1: Devoluciones (e2e)', () => {
       .expect(200)).body.stock as number;
     expect(stockDespues).toBe(stockAntes + cantidadDevuelta);
 
-    const movimientos = await dataSource.query<Array<{ tipo: string; cantidad: number }>>(
+    const movimientosStock = await dataSource.query<Array<{ tipo: string; cantidad: number }>>(
       'SELECT tipo, cantidad FROM movimientos_stock WHERE id_devolucion = $1',
       [devolucion.idDevolucion],
     );
-    expect(movimientos).toHaveLength(1);
-    expect(movimientos[0].tipo).toBe('DEVOLUCION');
+    expect(movimientosStock).toHaveLength(1);
+    expect(movimientosStock[0].tipo).toBe('DEVOLUCION');
 
     const cuenta = await request(app.getHttpServer())
-      .get(`/cuentas-corrientes/${idCliente}`)
+      .get(`/cuentas-corrientes/cliente/${idCliente}/historial`)
       .auth(adminToken, { type: 'bearer' })
       .expect(200);
-    expect(Number(cuenta.body.saldo)).toBe(saldoAntes - PRECIO_UNITARIO * cantidadDevuelta);
+    expect(Number(cuenta.body.cuenta.saldo)).toBe(saldoAntes - PRECIO_UNITARIO * cantidadDevuelta);
     const movimientos = cuenta.body.movimientos as Array<{ tipo: string }>;
     expect(movimientos.some((m) => m.tipo === 'NOTA_CREDITO')).toBe(true);
   });

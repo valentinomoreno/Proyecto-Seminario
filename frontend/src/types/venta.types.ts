@@ -1,9 +1,7 @@
-export interface VentaCliente {
-  idCliente: number;
-  nombre: string;
-  apellido: string;
-  email: string;
-}
+import type { ClienteResumen } from '../utils/cliente';
+
+/** El cliente embebido en la venta usa el modelo del módulo de clientes. */
+export type VentaCliente = ClienteResumen;
 
 export interface VentaEmpleado {
   idEmpleado: number;

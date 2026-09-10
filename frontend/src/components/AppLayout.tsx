@@ -59,6 +59,19 @@ export function AppLayout() {
                 </NavLink>
               </li>
 
+              <li className="pc-item">
+                <NavLink
+                  to="/clientes"
+                  className={({ isActive }) => `pc-link ${isActive ? 'active' : ''}`}
+                  onClick={closeMobileNav}
+                >
+                  <span className="pc-micon">
+                    <i className="ti ti-users" />
+                  </span>
+                  <span className="pc-mtext">Clientes</span>
+                </NavLink>
+              </li>
+
               {esAdmin && (
                 <li className="pc-item">
                   <NavLink
@@ -77,19 +90,6 @@ export function AppLayout() {
 
               <li className="pc-item pc-caption">
                 <label>VENTAS Y COBRANZAS</label>
-              </li>
-
-              <li className="pc-item">
-                <NavLink
-                  to="/clientes"
-                  className={({ isActive }) => `pc-link ${isActive ? 'active' : ''}`}
-                  onClick={closeMobileNav}
-                >
-                  <span className="pc-micon">
-                    <i className="ti ti-users" />
-                  </span>
-                  <span className="pc-mtext">Clientes</span>
-                </NavLink>
               </li>
 
               <li className="pc-item">
