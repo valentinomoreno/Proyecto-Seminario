@@ -60,3 +60,15 @@ export interface ProductoPayload {
   marcaId: number;
   estanteId: number;
 }
+
+export interface ProductoCatalogo {
+  idProducto: number;
+  sku: string;
+  nombre: string;
+  descripcion: string;
+  precioUnitario: number;
+  stock: number;
+  imagenUrl?: string | null;
+  categoria?: { idCategoria: number; nombre: string };
+  marca?: { idMarca: number; nombre: string };
+}

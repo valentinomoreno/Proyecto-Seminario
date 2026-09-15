@@ -48,6 +48,20 @@ export function AppLayout() {
 
               <li className="pc-item">
                 <NavLink
+                  to="/pos"
+                  className={({ isActive }) => `pc-link ${isActive ? 'active' : ''}`}
+                  onClick={closeMobileNav}
+                >
+                  <span className="pc-micon">
+                    <i className="ti ti-device-laptop" />
+                  </span>
+                  <span className="pc-mtext">Punto de Venta (POS)</span>
+                  <span className="pc-badge bg-success text-white">Mostrador</span>
+                </NavLink>
+              </li>
+
+              <li className="pc-item">
+                <NavLink
                   to="/catalogo"
                   className={({ isActive }) => `pc-link ${isActive ? 'active' : ''}`}
                   onClick={closeMobileNav}

@@ -10,6 +10,10 @@ import { Empleado } from '../modules/usuarios/entities/empleado.entity';
 import { Persona } from '../modules/usuarios/entities/persona.entity';
 import { Rol } from '../modules/usuarios/entities/rol.entity';
 import { Usuario } from '../modules/usuarios/entities/usuario.entity';
+import { CondicionIva } from '../modules/clientes/enums/condicion-iva.enum';
+import { Cliente } from '../modules/clientes/entities/cliente.entity';
+import { CuentaCorriente } from '../modules/clientes/entities/cuenta-corriente.entity';
+import { Producto } from '../modules/productos/entities/producto.entity';
 import AppDataSource from './data-source';
 
 async function restoreOrCreate<T extends ObjectLiteral>(
@@ -139,6 +143,103 @@ async function seed(): Promise<void> {
           sector,
         });
       }
+    }
+
+    // 4. Clientes iniciales para pruebas de ventas y cuenta corriente
+    const personaCliente1 = await restoreOrCreate(manager, Persona, { dni: '30111222' }, {
+      nombre: 'Juan Carlos',
+      apellido: 'Pérez (Taller Pérez)',
+      dni: '30111222',
+      cuil: '20301112229',
+    });
+    const cliente1 = await restoreOrCreate(manager, Cliente, { persona: { idPersona: personaCliente1.idPersona } } as Partial<Cliente>, {
+      persona: personaCliente1,
+      condicionIva: CondicionIva.RESPONSABLE_INSCRIPTO,
+      cuentaCorrienteHabilitada: true,
+      limiteCredito: 500000,
+    });
+    await restoreOrCreate(manager, CuentaCorriente, { cliente: { idCliente: cliente1.idCliente } } as Partial<CuentaCorriente>, {
+      cliente: cliente1,
+      saldo: 0,
+      limiteCredito: 500000,
+      activo: true,
+    });
+
+    const personaCliente2 = await restoreOrCreate(manager, Persona, { dni: '40333444' }, {
+      nombre: 'María',
+      apellido: 'González',
+      dni: '40333444',
+      cuil: '27403334448',
+    });
+    await restoreOrCreate(manager, Cliente, { persona: { idPersona: personaCliente2.idPersona } } as Partial<Cliente>, {
+      persona: personaCliente2,
+      condicionIva: CondicionIva.CONSUMIDOR_FINAL,
+      cuentaCorrienteHabilitada: false,
+      limiteCredito: 0,
+    });
+
+    const personaCliente3 = await restoreOrCreate(manager, Persona, { dni: '25555666' }, {
+      nombre: 'Roberto',
+      apellido: 'Martínez (Fletes Martínez)',
+      dni: '25555666',
+      cuil: '20255556667',
+    });
+    const cliente3 = await restoreOrCreate(manager, Cliente, { persona: { idPersona: personaCliente3.idPersona } } as Partial<Cliente>, {
+      persona: personaCliente3,
+      condicionIva: CondicionIva.MONOTRIBUTO,
+      cuentaCorrienteHabilitada: true,
+      limiteCredito: 200000,
+    });
+    await restoreOrCreate(manager, CuentaCorriente, { cliente: { idCliente: cliente3.idCliente } } as Partial<CuentaCorriente>, {
+      cliente: cliente3,
+      saldo: 0,
+      limiteCredito: 200000,
+      activo: true,
+    });
+
+    // 5. Productos con stock para pruebas de mostrador
+    const catFrenos = await manager.getRepository(Categoria).findOneBy({ nombre: 'Frenos' });
+    const catMotor = await manager.getRepository(Categoria).findOneBy({ nombre: 'Motor' });
+    const catElec = await manager.getRepository(Categoria).findOneBy({ nombre: 'Electricidad' });
+    const marcaBosch = await manager.getRepository(Marca).findOneBy({ nombre: 'Bosch' });
+    const marcaNgk = await manager.getRepository(Marca).findOneBy({ nombre: 'NGK' });
+    const estanteA1 = await manager.getRepository(Estante).findOneBy({ codigo: 'A-01' });
+
+    if (catFrenos && marcaBosch && estanteA1) {
+      await restoreOrCreate(manager, Producto, { sku: 'PROD-00001' }, {
+        sku: 'PROD-00001',
+        nombre: 'Pastillas de Freno Delanteras',
+        descripcion: 'Juego de pastillas de freno cerámicas para tren delantero.',
+        stock: 50,
+        precioUnitario: 35000,
+        categoria: catFrenos,
+        marca: marcaBosch,
+        estante: estanteA1,
+      });
+    }
+    if (catMotor && marcaNgk && estanteA1) {
+      await restoreOrCreate(manager, Producto, { sku: 'PROD-00002' }, {
+        sku: 'PROD-00002',
+        nombre: 'Bujías de Encendido Iridium (x4)',
+        descripcion: 'Kit de 4 bujías de alto rendimiento.',
+        stock: 30,
+        precioUnitario: 28000,
+        categoria: catMotor,
+        marca: marcaNgk,
+        estante: estanteA1,
+      });
+    }
+    if (catElec && marcaBosch && estanteA1) {
+      await restoreOrCreate(manager, Producto, { sku: 'PROD-00003' }, {
+        sku: 'PROD-00003',
+        nombre: 'Batería 12V 75Ah Libre Mantenimiento',
+        descripcion: 'Batería reforzada para arranque pesado.',
+        stock: 15,
+        precioUnitario: 120000,
+        categoria: catElec,
+        marca: marcaBosch,
+        estante: estanteA1,
+      });
     }
   });
   await AppDataSource.destroy();
