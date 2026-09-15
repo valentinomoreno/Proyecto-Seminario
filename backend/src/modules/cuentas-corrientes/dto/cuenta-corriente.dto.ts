@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsNumber, IsOptional, Min } from 'class-validator';
+import { IsInt, IsNumber, IsOptional, IsPositive, IsString, MaxLength, Min } from 'class-validator';
 
 export class CreateCuentaCorrienteDto {
   @Type(() => Number)
@@ -12,6 +12,17 @@ export class CreateCuentaCorrienteDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   limiteCredito?: number = 0;
+}
+
+export class RegistrarPagoDto {
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  monto: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  observaciones?: string;
 }
 
 export class QueryCuentasCorrientesDto {

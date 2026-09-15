@@ -45,6 +45,18 @@ export class TypeOrmCuentasCorrientesRepository implements ICuentasCorrientesRep
     });
   }
 
+  async findConSaldoDeudor(): Promise<CuentaCorriente[]> {
+    return this.ormRepository
+      .createQueryBuilder('cuenta')
+      .innerJoinAndSelect('cuenta.cliente', 'cliente', 'cliente.fecha_baja IS NULL')
+      .leftJoinAndSelect('cliente.persona', 'persona')
+      .leftJoinAndSelect('cliente.empresa', 'empresa')
+      .where('cuenta.saldo > 0')
+      .andWhere('cuenta.activa = true')
+      .orderBy('cuenta.idCuentaCorriente', 'ASC')
+      .getMany();
+  }
+
   create(data: Partial<CuentaCorriente>): CuentaCorriente {
     return this.ormRepository.create(data);
   }

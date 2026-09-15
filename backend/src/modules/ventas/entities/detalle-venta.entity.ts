@@ -53,4 +53,7 @@ export class DetalleVenta {
     transformer: decimalTransformer,
   })
   subtotal: number;
+
+  @Column({ name: 'cantidad_devuelta', type: 'integer', default: 0 })
+  cantidadDevuelta: number;
 }

@@ -19,6 +19,7 @@ export interface DetalleVentaResponse {
   cantidad: number;
   precioUnitario: number;
   subtotal: number;
+  cantidadDevuelta: number;
 }
 
 export interface FacturaResponse {

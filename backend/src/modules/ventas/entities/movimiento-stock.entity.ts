@@ -54,4 +54,7 @@ export class MovimientoStock {
 
   @Column({ type: 'varchar', length: 200 })
   motivo: string;
+
+  @Column({ name: 'id_devolucion', type: 'integer', nullable: true })
+  idDevolucion: number | null;
 }

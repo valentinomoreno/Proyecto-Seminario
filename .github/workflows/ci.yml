@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    name: Build, lint y tests unitarios
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Lint (backend + frontend)
+        run: npm run lint
+
+      - name: Build (backend + frontend)
+        run: npm run build
+
+      # Los tests unitarios de ambos workspaces no necesitan base de datos.
+      - name: Tests unitarios (backend + frontend)
+        run: npm test
+
+  e2e:
+    name: Tests e2e (backend + Postgres)
+    runs-on: ubuntu-latest
+    # TP universitario: si un e2e resulta flaky no queremos que trabe el merge
+    # ni el trabajo del grupo. El job informa el fallo pero no bloquea el PR.
+    continue-on-error: true
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: autopartes
+          POSTGRES_USER: autopartes
+          POSTGRES_PASSWORD: autopartes_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U autopartes -d autopartes"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      NODE_ENV: test
+      # 'postgres' es el hostname del service container dentro de la red del job.
+      DB_HOST: postgres
+      DB_PORT: '5432'
+      DB_NAME: autopartes
+      DB_USER: autopartes
+      DB_PASSWORD: autopartes_ci
+      DB_SYNC: 'false'
+      DB_LOGGING: 'false'
+      BACKEND_PORT: '3000'
+      FRONTEND_URL: http://localhost:5173
+      JWT_SECRET: ci-jwt-secret-solo-para-integracion-continua-no-usar-en-produccion-0123456789
+      JWT_EXPIRES_IN: 2h
+      # Las contrasenas del seed deben cumplir: 8+ caracteres, mayuscula,
+      # minuscula, numero y caracter especial (ver validateSeedPassword en seed.ts).
+      SEED_ADMIN_USERNAME: admin
+      SEED_ADMIN_PASSWORD: Admin_CI.2026!
+      SEED_VENTA_USERNAME: vendedor
+      SEED_VENTA_PASSWORD: Vendedor_CI.2026!
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      # typeorm.config.ts usa synchronize: false, asi que el esquema en CI
+      # se crea unicamente corriendo las migraciones.
+      - name: Correr migraciones
+        run: npm run db:migration:run
+
+      - name: Correr seed
+        run: npm run db:seed
+
+      - name: Tests e2e
+        run: npm run test:e2e

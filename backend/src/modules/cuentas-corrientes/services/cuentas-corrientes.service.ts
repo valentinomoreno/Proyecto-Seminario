@@ -1,16 +1,28 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { QueryFailedError } from 'typeorm';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { DataSource, QueryFailedError } from 'typeorm';
 import { Cliente, TipoCliente } from '../../clientes/entities/cliente.entity';
 import {
   CLIENTES_REPOSITORY,
   IClientesRepository,
 } from '../../clientes/repositories/interfaces/clientes-repository.interface';
-import { CreateCuentaCorrienteDto, QueryCuentasCorrientesDto } from '../dto/cuenta-corriente.dto';
+import { CreateCuentaCorrienteDto, QueryCuentasCorrientesDto, RegistrarPagoDto } from '../dto/cuenta-corriente.dto';
 import { CuentaCorriente } from '../entities/cuenta-corriente.entity';
+import { MovimientoCtaCorriente } from '../entities/movimiento-cta-corriente.entity';
+import { TipoMovimientoCtaCorriente } from '../enums/tipo-movimiento-cta-corriente.enum';
 import {
   CUENTAS_CORRIENTES_REPOSITORY,
   ICuentasCorrientesRepository,
 } from '../repositories/interfaces/cuentas-corrientes-repository.interface';
+import {
+  IMovimientosCtaCorrienteRepository,
+  MOVIMIENTOS_CTA_CORRIENTE_REPOSITORY,
+} from '../repositories/interfaces/movimientos-cta-corriente-repository.interface';
 
 interface PostgresError {
   code?: string;
@@ -23,6 +35,9 @@ export class CuentasCorrientesService {
     private readonly repository: ICuentasCorrientesRepository,
     @Inject(CLIENTES_REPOSITORY)
     private readonly clientesRepository: IClientesRepository,
+    @Inject(MOVIMIENTOS_CTA_CORRIENTE_REPOSITORY)
+    private readonly movimientosRepository: IMovimientosCtaCorrienteRepository,
+    private readonly dataSource: DataSource,
   ) {}
 
   async findAll(query: QueryCuentasCorrientesDto) {
@@ -73,6 +88,73 @@ export class CuentasCorrientesService {
     }
   }
 
+  /** Cuenta del cliente junto con su historial de movimientos (más recientes primero). */
+  async findHistorialByCliente(idCliente: number) {
+    const cuenta = await this.requireCuentaDeCliente(idCliente);
+    const movimientos = await this.movimientosRepository.findByCuenta(cuenta.idCuentaCorriente);
+    return {
+      cuenta: this.toResponse(cuenta),
+      movimientos: movimientos.map((movimiento) => this.toMovimientoResponse(movimiento)),
+    };
+  }
+
+  /**
+   * Pago manual imputado sobre la cuenta corriente: registra un MovimientoCtaCorriente
+   * de tipo COBRO_CUENTA (monto siempre positivo, según el CHECK de la tabla) y
+   * descuenta el saldo de forma atómica.
+   */
+  async registrarPago(idCliente: number, dto: RegistrarPagoDto, idEmpleado: number | null) {
+    const cuentaActual = await this.requireCuentaDeCliente(idCliente);
+    if (!cuentaActual.activa) {
+      throw new ConflictException('No se pueden registrar pagos sobre una cuenta corriente inactiva.');
+    }
+
+    const movimiento = await this.dataSource.transaction(async (manager) => {
+      const cuentasRepository = manager.getRepository(CuentaCorriente);
+      const movimientosRepository = manager.getRepository(MovimientoCtaCorriente);
+
+      // Bloqueo pesimista por PK: el filtro debe ser sobre la clave primaria, nunca
+      // sobre la relación `cliente`, porque el LEFT JOIN resultante rompe el FOR UPDATE.
+      const cuenta = await cuentasRepository.findOne({
+        where: { idCuentaCorriente: cuentaActual.idCuentaCorriente },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!cuenta) throw new NotFoundException('Cuenta corriente no encontrada.');
+
+      const saldo = this.redondear(Number(cuenta.saldo));
+      const monto = this.redondear(Number(dto.monto));
+      if (monto > saldo) {
+        throw new BadRequestException(
+          `El pago de $${monto.toFixed(2)} supera el saldo pendiente de $${saldo.toFixed(2)}.`,
+        );
+      }
+
+      const saldoPosterior = this.redondear(saldo - monto);
+      const descripcion = idEmpleado === null
+        ? (dto.observaciones ?? 'Pago manual registrado por administración.')
+        : `${dto.observaciones ?? 'Pago manual registrado por administración.'} (legajo empleado #${idEmpleado})`;
+      const guardado = await movimientosRepository.save(
+        movimientosRepository.create({
+          cuentaCorriente: cuenta,
+          tipo: TipoMovimientoCtaCorriente.COBRO_CUENTA,
+          monto,
+          saldoPosterior,
+          venta: null,
+          descripcion,
+        }),
+      );
+
+      cuenta.saldo = saldoPosterior;
+      await cuentasRepository.save(cuenta);
+      return guardado;
+    });
+
+    return {
+      cuenta: this.toResponse(await this.requireCuenta(cuentaActual.idCuentaCorriente)),
+      movimiento: this.toMovimientoResponse(movimiento),
+    };
+  }
+
   async remove(id: number): Promise<void> {
     const cuenta = await this.requireCuenta(id);
     if (!cuenta.activa) throw new NotFoundException('Cuenta corriente no encontrada o inactiva.');
@@ -90,6 +172,17 @@ export class CuentasCorrientesService {
     return cuenta;
   }
 
+  /** Cuenta del cliente con todas sus relaciones cargadas para armar la respuesta. */
+  private async requireCuentaDeCliente(idCliente: number): Promise<CuentaCorriente> {
+    const cuenta = await this.repository.findByClienteId(idCliente);
+    if (!cuenta) throw new NotFoundException('El cliente no tiene una cuenta corriente asociada.');
+    return this.requireCuenta(cuenta.idCuentaCorriente);
+  }
+
+  private redondear(valor: number): number {
+    return Math.round(valor * 100) / 100;
+  }
+
   private toResponse(cuenta: CuentaCorriente) {
     const limiteCredito = Number(cuenta.limiteCredito) || 0;
     const saldo = Number(cuenta.saldo) || 0;
@@ -103,6 +196,18 @@ export class CuentasCorrientesService {
       fechaAlta: cuenta.fechaAlta,
       fechaBaja: cuenta.fechaBaja,
       cliente: this.toClienteSummary(cuenta.cliente),
+    };
+  }
+
+  private toMovimientoResponse(movimiento: MovimientoCtaCorriente) {
+    return {
+      idMovimientoCtaCte: movimiento.idMovimientoCtaCte,
+      tipo: movimiento.tipo,
+      monto: Number(movimiento.monto),
+      saldoPosterior: Number(movimiento.saldoPosterior),
+      fecha: movimiento.fecha,
+      idVenta: movimiento.venta?.idVenta ?? null,
+      observaciones: movimiento.descripcion,
     };
   }
 

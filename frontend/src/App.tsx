@@ -3,10 +3,13 @@ import { AppLayout } from './components/AppLayout';
 import { CartProvider } from './context/CartContext';
 import { CatalogoPage } from './pages/CatalogoPage';
 import { ClientesListPage } from './pages/ClientesListPage';
+import { CuentasCorrientesPage } from './pages/CuentasCorrientesPage';
+import { DetalleDeudaPage } from './pages/DetalleDeudaPage';
 import { FormClientePage } from './pages/FormClientePage';
 import { FormProductoPage } from './pages/FormProductoPage';
 import { LoginPage } from './pages/LoginPage';
 import { PuntoDeVentaPage } from './pages/PuntoDeVentaPage';
+import { RegistrarDevolucionPage } from './pages/RegistrarDevolucionPage';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 
 export default function App() {
@@ -21,6 +24,9 @@ export default function App() {
             <Route path="/clientes" element={<ClientesListPage />} />
             <Route path="/clientes/nuevo" element={<FormClientePage />} />
             <Route path="/clientes/:id/editar" element={<FormClientePage />} />
+            <Route path="/devoluciones/nueva" element={<RegistrarDevolucionPage />} />
+            <Route path="/cuentas-corrientes" element={<CuentasCorrientesPage />} />
+            <Route path="/cuentas-corrientes/:idCliente" element={<DetalleDeudaPage />} />
             <Route element={<ProtectedRoute roles={['ADMINISTRADOR']} />}>
               <Route path="/productos/nuevo" element={<FormProductoPage />} />
               <Route path="/productos/:id/editar" element={<FormProductoPage />} />
