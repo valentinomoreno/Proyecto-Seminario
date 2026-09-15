@@ -113,17 +113,39 @@ describe('Sprint 2 (e2e)', () => {
       personaContacto: 'Contacto Duplicado',
       condicionIvaId: responsableId,
     }).expect(409).expect(({ body }) => expect(body.message).toBe('Ya existe un cliente con ese CUIT.'));
+    await request(app.getHttpServer()).post('/clientes/empresa').auth(employeeToken, { type: 'bearer' }).send({
+      cuit,
+      razonSocial: 'Empresa sin condición fiscal',
+      personaContacto: 'Contacto de prueba',
+    }).expect(400);
 
     await request(app.getHttpServer()).get('/clientes').auth(employeeToken, { type: 'bearer' })
       .query({ buscar: `Sprint${uniqueBody}` }).expect(200)
       .expect(({ body }) => expect((body.data as Array<{ idCliente: number }>).some((cliente) => cliente.idCliente === personaId)).toBe(true));
     await request(app.getHttpServer()).get('/clientes').auth(employeeToken, { type: 'bearer' })
+      .query({ buscar: dni }).expect(200)
+      .expect(({ body }) => expect((body.data as Array<{ idCliente: number }>).some((cliente) => cliente.idCliente === personaId)).toBe(true));
+    await request(app.getHttpServer()).get('/clientes').auth(employeeToken, { type: 'bearer' })
       .query({ buscar: cuit }).expect(200)
+      .expect(({ body }) => expect((body.data as Array<{ idCliente: number }>).some((cliente) => cliente.idCliente === clientIds[1])).toBe(true));
+    await request(app.getHttpServer()).get('/clientes').auth(employeeToken, { type: 'bearer' })
+      .query({ buscar: `Autopartes ${uniqueBody}` }).expect(200)
       .expect(({ body }) => expect((body.data as Array<{ idCliente: number }>).some((cliente) => cliente.idCliente === clientIds[1])).toBe(true));
 
     await request(app.getHttpServer()).put(`/clientes/${personaId}`).auth(employeeToken, { type: 'bearer' })
       .send({ telefono: '3515559999', direccion: 'Dirección actualizada' }).expect(200)
       .expect(({ body }) => expect(body.contacto.telefono).toBe('3515559999'));
+    await request(app.getHttpServer()).get(`/clientes/${personaId}`).auth(employeeToken, { type: 'bearer' })
+      .expect(200)
+      .expect(({ body }) => expect(body.contacto).toMatchObject({
+        telefono: '3515559999',
+        direccion: 'Dirección actualizada',
+      }));
+    const persistedPersona = await dataSource.getRepository(ClientePersona).findOne({
+      where: { cliente: { idCliente: personaId } },
+      relations: { personaRegistro: true },
+    });
+    expect(persistedPersona?.personaRegistro).toMatchObject({ dni, cuil });
     await request(app.getHttpServer()).put(`/clientes/${personaId}`).auth(employeeToken, { type: 'bearer' })
       .send({ condicionIvaId: responsableId }).expect(400);
     await request(app.getHttpServer()).delete(`/clientes/${personaId}`).auth(employeeToken, { type: 'bearer' }).expect(403);

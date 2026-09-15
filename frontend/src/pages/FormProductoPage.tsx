@@ -73,7 +73,7 @@ export function FormProductoPage() {
           setEstantes(estantesResponse.data);
           setForm({
             nombre: producto.nombre,
-            descripcion: producto.descripcion,
+            descripcion: producto.descripcion ?? '',
             stock: String(producto.stock),
             precioUnitario: String(producto.precioUnitario),
             imagenUrl: producto.imagenUrl ?? '',
@@ -147,7 +147,7 @@ export function FormProductoPage() {
     setError('');
     const payload: ProductoPayload = {
       nombre: form.nombre.trim(),
-      descripcion: form.descripcion.trim(),
+      descripcion: form.descripcion.trim() || null,
       stock: Number(form.stock),
       precioUnitario: Number(form.precioUnitario),
       imagenUrl: form.imagenUrl.trim() || null,
@@ -295,14 +295,13 @@ export function FormProductoPage() {
 
                   <div className="col-12">
                     <label className="form-label fw-semibold" htmlFor="textarea-descripcion">
-                      Descripción <span className="text-danger">*</span>
+                      Descripción <span className="text-muted fw-normal">(opcional)</span>
                     </label>
                     <textarea
                       id="textarea-descripcion"
                       className="form-control"
                       value={form.descripcion}
                       onChange={(e) => update('descripcion', e.target.value)}
-                      required
                       rows={3}
                       maxLength={2000}
                       placeholder="Características principales, compatibilidad y especificaciones técnicas"

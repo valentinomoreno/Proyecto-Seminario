@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, DataSource, Repository } from 'typeorm';
+import { Persona } from '../../usuarios/entities/persona.entity';
 import { CreateClienteEmpresaDto, CreateClientePersonaDto, QueryClientesDto } from '../dto/cliente.dto';
 import { ClienteEmpresa } from '../entities/cliente-empresa.entity';
 import { ClientePersona } from '../entities/cliente-persona.entity';
@@ -76,6 +77,18 @@ export class TypeOrmClientesRepository implements IClientesRepository {
 
   async createPersona(dto: CreateClientePersonaDto, condicionIva: CondicionIva): Promise<Cliente> {
     const clienteId = await this.dataSource.transaction(async (manager) => {
+      const personasRepository = manager.getRepository(Persona);
+      let personaRegistro = await personasRepository.findOne({
+        where: { dni: dto.dni, cuil: dto.cuil },
+      });
+      if (!personaRegistro) {
+        personaRegistro = await personasRepository.save(personasRepository.create({
+          nombre: dto.nombre.trim(),
+          apellido: dto.apellido.trim(),
+          dni: dto.dni,
+          cuil: dto.cuil,
+        }));
+      }
       const cliente = await manager.getRepository(Cliente).save(manager.getRepository(Cliente).create({
         tipo: TipoCliente.PERSONA,
         telefono: dto.telefono ?? null,
@@ -89,6 +102,7 @@ export class TypeOrmClientesRepository implements IClientesRepository {
         dni: dto.dni,
         cuil: dto.cuil,
         cliente,
+        personaRegistro,
       }));
       return cliente.idCliente;
     });

@@ -17,6 +17,18 @@ describe('CreateProductoDto', () => {
     expect(await validate(plainToInstance(CreateProductoDto, valid))).toHaveLength(0);
   });
 
+  it('acepta un producto sin descripción', async () => {
+    const sinDescripcion = {
+      nombre: valid.nombre,
+      stock: valid.stock,
+      precioUnitario: valid.precioUnitario,
+      categoriaId: valid.categoriaId,
+      marcaId: valid.marcaId,
+      estanteId: valid.estanteId,
+    };
+    expect(await validate(plainToInstance(CreateProductoDto, sinDescripcion))).toHaveLength(0);
+  });
+
   it('rechaza stock negativo y precio no positivo', async () => {
     const errors = await validate(plainToInstance(CreateProductoDto, { ...valid, stock: -1, precioUnitario: 0 }));
     expect(errors.map((error) => error.property)).toEqual(expect.arrayContaining(['stock', 'precioUnitario']));
