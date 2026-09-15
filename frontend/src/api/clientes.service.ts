@@ -1,5 +1,5 @@
 import { api } from './axios.instance';
-import type { Cliente, CreateClientePayload } from '../types/cliente.types';
+import type { Cliente, CreateClientePersonaPayload } from '../types/cliente.types';
 
 export const clientesApi = {
   async getClientes(buscar?: string, limit = 50): Promise<{ data: Cliente[] }> {
@@ -14,8 +14,8 @@ export const clientesApi = {
     return response.data;
   },
 
-  async createCliente(payload: CreateClientePayload): Promise<Cliente> {
-    const response = await api.post<Cliente>('/clientes', payload);
+  async createClientePersona(payload: CreateClientePersonaPayload): Promise<Cliente> {
+    const response = await api.post<Cliente>('/clientes/persona', payload);
     return response.data;
   },
 };

@@ -1,4 +1,4 @@
-import type { Cliente } from './cliente.types';
+import type { ClienteEmpresa, ClientePersona, CondicionIva, TipoCliente } from './cliente.types';
 
 export type ModalidadPago = 'CONTADO' | 'CUENTA_CORRIENTE';
 export type MetodoCobro =
@@ -50,7 +50,16 @@ export interface VentaResponse {
   total: number;
   modalidadPago: ModalidadPago;
   estado: EstadoVenta;
-  cliente: Cliente;
+  cliente: {
+    idCliente: number;
+    tipo: TipoCliente;
+    telefono: string | null;
+    correo: string | null;
+    direccion: string | null;
+    condicionIva: CondicionIva;
+    persona: ClientePersona | null;
+    empresa: ClienteEmpresa | null;
+  };
   detalles: DetalleVentaResponse[];
   cobro?: CobroResponse;
   factura?: FacturaResponse;

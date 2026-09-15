@@ -3,50 +3,49 @@ import {
   DeleteDateColumn,
   Entity,
   JoinColumn,
+  ManyToOne,
   OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { Persona } from '../../usuarios/entities/persona.entity';
-import { CondicionIva } from '../enums/condicion-iva.enum';
-import { CuentaCorriente } from './cuenta-corriente.entity';
+import { CuentaCorriente } from '../../cuentas-corrientes/entities/cuenta-corriente.entity';
+import { ClienteEmpresa } from './cliente-empresa.entity';
+import { ClientePersona } from './cliente-persona.entity';
+import { CondicionIva } from './condicion-iva.entity';
 
-const decimalTransformer = {
-  to: (value: number | null) => value,
-  from: (value: string | null) => (value === null ? null : Number(value)),
-};
+export enum TipoCliente {
+  PERSONA = 'PERSONA',
+  EMPRESA = 'EMPRESA',
+}
 
 @Entity('clientes')
 export class Cliente {
   @PrimaryGeneratedColumn({ name: 'id_cliente' })
   idCliente: number;
 
-  @Column({
-    name: 'condicion_iva',
-    type: 'enum',
-    enum: CondicionIva,
-    default: CondicionIva.CONSUMIDOR_FINAL,
-  })
+  @Column({ type: 'enum', enum: TipoCliente })
+  tipo: TipoCliente;
+
+  @Column({ type: 'varchar', length: 40, nullable: true })
+  telefono: string | null;
+
+  @Column({ type: 'varchar', length: 160, nullable: true })
+  correo: string | null;
+
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  direccion: string | null;
+
+  @ManyToOne(() => CondicionIva, (condicionIva) => condicionIva.clientes, { nullable: false, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'id_condicion_iva' })
   condicionIva: CondicionIva;
 
-  @Column({ name: 'cuenta_corriente_habilitada', type: 'boolean', default: false })
-  cuentaCorrienteHabilitada: boolean;
+  @OneToOne(() => ClientePersona, (persona) => persona.cliente)
+  persona: ClientePersona | null;
 
-  @Column({
-    name: 'limite_credito',
-    type: 'numeric',
-    precision: 12,
-    scale: 2,
-    default: 0,
-    transformer: decimalTransformer,
-  })
-  limiteCredito: number;
+  @OneToOne(() => ClienteEmpresa, (empresa) => empresa.cliente)
+  empresa: ClienteEmpresa | null;
 
-  @OneToOne(() => Persona, { eager: true, cascade: true, nullable: false })
-  @JoinColumn({ name: 'id_persona' })
-  persona: Persona;
-
-  @OneToOne(() => CuentaCorriente, (cta) => cta.cliente)
-  cuentaCorriente: CuentaCorriente;
+  @OneToOne(() => CuentaCorriente, (cuentaCorriente) => cuentaCorriente.cliente)
+  cuentaCorriente: CuentaCorriente | null;
 
   @DeleteDateColumn({ name: 'fecha_baja', type: 'timestamptz', nullable: true })
   fechaBaja: Date | null;

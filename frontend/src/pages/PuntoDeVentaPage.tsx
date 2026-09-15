@@ -10,6 +10,20 @@ import type { ProductoCatalogo } from '../types/producto.types';
 import type { MetodoCobro, ModalidadPago, VentaResponse } from '../types/venta.types';
 import { api } from '../api/axios.instance';
 
+function documentoCliente(cliente: Cliente): string {
+  return cliente.persona?.dni ?? cliente.empresa?.cuit ?? '';
+}
+
+function tieneCuentaActiva(cliente: Cliente | null): boolean {
+  return cliente?.estadoCuenta === 'ACTIVA' && Boolean(cliente.cuentaCorriente);
+}
+
+function tipoComprobante(cliente: Cliente | null): string {
+  if (cliente?.condicionIva.codigo === 'RESPONSABLE_INSCRIPTO') return 'Factura A';
+  if (cliente?.condicionIva.codigo === 'EXENTO') return 'Factura C';
+  return 'Factura B';
+}
+
 export function PuntoDeVentaPage() {
   const { items, totalItems, total, agregarItem, modificarCantidad, eliminarItem, limpiarCarrito } =
     useCart();
@@ -35,18 +49,26 @@ export function PuntoDeVentaPage() {
   const [errorVenta, setErrorVenta] = useState('');
   const [ventaConfirmada, setVentaConfirmada] = useState<VentaResponse | null>(null);
 
-  // Cargar clientes iniciales
+  // Búsqueda remota de clientes con debounce para no limitar el POS a la primera página.
   useEffect(() => {
-    clientesApi
-      .getClientes('', 100)
-      .then((res) => {
-        setClientes(res.data);
-        if (res.data.length > 0 && !clienteSeleccionado) {
-          setClienteSeleccionado(res.data[0]);
-        }
-      })
-      .catch((err) => console.error('Error al cargar clientes:', err));
-  }, []);
+    let active = true;
+    const timer = window.setTimeout(() => {
+      clientesApi
+        .getClientes(busquedaCliente.trim(), 100)
+        .then((res) => {
+          if (!active) return;
+          setClientes(res.data);
+          setClienteSeleccionado((actual) => actual ?? res.data[0] ?? null);
+        })
+        .catch((requestError: unknown) => {
+          if (active) setErrorVenta(getApiErrorMessage(requestError));
+        });
+    }, 250);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [busquedaCliente]);
 
   // Búsqueda dinámica de repuestos (con debounce)
   useEffect(() => {
@@ -56,8 +78,8 @@ export function PuntoDeVentaPage() {
         .get<{ data: ProductoCatalogo[] }>('/productos', {
           params: { buscar: busquedaRepuesto, limit: 12 },
         })
-        .then((res) => setRepuestos(res.data))
-        .catch((err) => console.error('Error al buscar repuestos:', err))
+        .then(({ data }) => setRepuestos(data.data))
+        .catch((requestError: unknown) => setErrorVenta(getApiErrorMessage(requestError)))
         .finally(() => setCargandoRepuestos(false));
     }, 200);
 
@@ -66,7 +88,7 @@ export function PuntoDeVentaPage() {
 
   // Si cambia el cliente y no tiene cuenta corriente habilitada, forzar contado
   useEffect(() => {
-    if (clienteSeleccionado && !clienteSeleccionado.cuentaCorrienteHabilitada) {
+    if (clienteSeleccionado && !tieneCuentaActiva(clienteSeleccionado)) {
       setModalidadPago('CONTADO');
     }
   }, [clienteSeleccionado]);
@@ -96,6 +118,12 @@ export function PuntoDeVentaPage() {
       setVentaConfirmada(response);
       limpiarCarrito();
       setReferenciaPago('');
+      void clientesApi.getCliente(clienteSeleccionado.idCliente).then((actualizado) => {
+        setClientes((actuales) => actuales.map((cliente) =>
+          cliente.idCliente === actualizado.idCliente ? actualizado : cliente,
+        ));
+        setClienteSeleccionado(actualizado);
+      }).catch(() => undefined);
     } catch (err) {
       setErrorVenta(getApiErrorMessage(err));
     } finally {
@@ -107,10 +135,10 @@ export function PuntoDeVentaPage() {
     if (!busquedaCliente.trim()) return true;
     const term = busquedaCliente.toLowerCase();
     return (
-      c.persona.nombre.toLowerCase().includes(term) ||
-      c.persona.apellido.toLowerCase().includes(term) ||
-      c.persona.dni.includes(term) ||
-      c.persona.cuil.includes(term)
+      c.nombreMostrar.toLowerCase().includes(term) ||
+      c.persona?.cuil.includes(term) ||
+      c.empresa?.cuit.includes(term) ||
+      documentoCliente(c).includes(term)
     );
   });
 
@@ -299,7 +327,7 @@ export function PuntoDeVentaPage() {
                   </option>
                   {clientesFiltrados.map((c) => (
                     <option key={c.idCliente} value={c.idCliente}>
-                      {c.persona.apellido}, {c.persona.nombre} (DNI: {c.persona.dni} - {c.condicionIva.replace('_', ' ')})
+                      {c.nombreMostrar} ({documentoCliente(c)} · {c.condicionIva.nombre})
                     </option>
                   ))}
                 </select>
@@ -309,14 +337,14 @@ export function PuntoDeVentaPage() {
                     <div className="d-flex justify-content-between">
                       <span className="text-muted">Condición IVA:</span>
                       <strong className="badge bg-secondary-subtle text-secondary">
-                        {clienteSeleccionado.condicionIva.replace('_', ' ')}
+                        {clienteSeleccionado.condicionIva.nombre}
                       </strong>
                     </div>
                     <div className="d-flex justify-content-between mt-1">
                       <span className="text-muted">Cuenta Corriente:</span>
-                      {clienteSeleccionado.cuentaCorrienteHabilitada ? (
+                      {tieneCuentaActiva(clienteSeleccionado) ? (
                         <span className="text-success fw-bold">
-                          ✓ Habilitada (Límite: ${Number(clienteSeleccionado.limiteCredito).toLocaleString('es-AR')})
+                          ✓ Disponible: ${Number(clienteSeleccionado.cuentaCorriente?.creditoDisponible ?? 0).toLocaleString('es-AR')}
                         </span>
                       ) : (
                         <span className="text-danger">✗ No habilitada</span>
@@ -400,10 +428,10 @@ export function PuntoDeVentaPage() {
                     className={`btn btn-sm ${
                       modalidadPago === 'CUENTA_CORRIENTE' ? 'btn-warning text-dark' : 'btn-outline-warning text-dark'
                     }`}
-                    disabled={!clienteSeleccionado?.cuentaCorrienteHabilitada}
+                    disabled={!tieneCuentaActiva(clienteSeleccionado)}
                     onClick={() => setModalidadPago('CUENTA_CORRIENTE')}
                     title={
-                      !clienteSeleccionado?.cuentaCorrienteHabilitada
+                      !tieneCuentaActiva(clienteSeleccionado)
                         ? 'El cliente no tiene cuenta corriente habilitada'
                         : 'Cargar a cuenta corriente'
                     }
@@ -439,7 +467,7 @@ export function PuntoDeVentaPage() {
                     />
                   )}
                   <small className="text-muted d-block mt-1" style={{ fontSize: '0.75rem' }}>
-                    Emite {clienteSeleccionado?.condicionIva === 'RESPONSABLE_INSCRIPTO' ? 'Factura A' : 'Factura B'}.
+                    Emite {tipoComprobante(clienteSeleccionado)}.
                   </small>
                 </div>
               ) : (

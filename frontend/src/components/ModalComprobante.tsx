@@ -11,6 +11,12 @@ export function ModalComprobante({ venta, onNuevaVenta }: Props) {
   const cliente = venta.cliente;
   const esRemito = factura?.tipoFactura === 'REMITO';
   const tituloComprobante = esRemito ? 'REMITO DE ENTREGA' : `FACTURA ${factura?.tipoFactura?.replace('FACTURA_', '') ?? 'B'}`;
+  const nombreCliente = cliente.persona
+    ? `${cliente.persona.nombre} ${cliente.persona.apellido}`
+    : cliente.empresa?.razonSocial ?? 'Cliente';
+  const documentoCliente = cliente.persona
+    ? `DNI ${cliente.persona.dni} / CUIL ${cliente.persona.cuil}`
+    : `CUIT ${cliente.empresa?.cuit ?? '-'}`;
 
   return (
     <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }} role="dialog">
@@ -49,12 +55,10 @@ export function ModalComprobante({ venta, onNuevaVenta }: Props) {
               <div className="row py-2 mb-3 bg-light rounded g-2 small">
                 <div className="col-sm-6">
                   <span className="text-muted d-block">Cliente:</span>
-                  <strong className="fs-6">{cliente.persona.nombre} {cliente.persona.apellido}</strong>
+                  <strong className="fs-6">{nombreCliente}</strong>
+                  <div className="text-muted">{documentoCliente}</div>
                   <div className="text-muted">
-                    DNI/CUIL: {cliente.persona.dni} / {cliente.persona.cuil}
-                  </div>
-                  <div className="text-muted">
-                    Condición IVA: <strong>{cliente.condicionIva.replace('_', ' ')}</strong>
+                    Condición IVA: <strong>{cliente.condicionIva.nombre}</strong>
                   </div>
                 </div>
                 <div className="col-sm-6 text-sm-end">
@@ -133,9 +137,13 @@ export function ModalComprobante({ venta, onNuevaVenta }: Props) {
                     <strong>CAE:</strong> {factura.cae} &nbsp;|&nbsp; 
                     <strong> Vto. CAE:</strong> {factura.fechaVencimientoCae ?? 'Sin fecha'}
                   </p>
-                ) : (
+                ) : esRemito ? (
                   <p className="mb-0 fst-italic">
-                    Comprobante no válido como factura. Documento de entrega para respaldo de cuenta corriente.
+                    Documento de entrega asociado a la imputación en cuenta corriente.
+                  </p>
+                ) : (
+                  <p className="mb-0 fst-italic text-warning">
+                    Comprobante interno pendiente de autorización fiscal y asignación de CAE.
                   </p>
                 )}
               </div>

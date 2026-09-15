@@ -1,4 +1,3 @@
-import { CondicionIva } from '../../../clientes/enums/condicion-iva.enum';
 import { QueryVentasDto } from '../../dto/query-ventas.dto';
 import { Venta } from '../../entities/venta.entity';
 import { MetodoCobro } from '../../enums/metodo-cobro.enum';
@@ -9,9 +8,6 @@ export const VENTAS_REPOSITORY = Symbol('VENTAS_REPOSITORY');
 export interface IRegistroVentaDatos {
   idUsuario: number;
   idCliente: number;
-  condicionIva: CondicionIva;
-  cuentaCorrienteHabilitada: boolean;
-  limiteCredito: number;
   modalidadPago: ModalidadPago;
   metodoCobro?: MetodoCobro;
   referenciaPago?: string;

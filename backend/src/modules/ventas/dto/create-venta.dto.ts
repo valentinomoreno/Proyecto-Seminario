@@ -6,6 +6,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
   ValidateIf,
   ValidateNested,
@@ -14,16 +15,19 @@ import { MetodoCobro } from '../enums/metodo-cobro.enum';
 import { ModalidadPago } from '../enums/modalidad-pago.enum';
 
 export class ItemVentaDto {
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   idProducto: number;
 
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   cantidad: number;
 }
 
 export class CreateVentaDto {
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   idCliente: number;
@@ -37,6 +41,7 @@ export class CreateVentaDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   referenciaPago?: string;
 
   @IsArray()

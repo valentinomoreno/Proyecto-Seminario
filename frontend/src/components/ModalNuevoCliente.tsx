@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react';
-import { getApiErrorMessage } from '../api/axios.instance';
+import { useEffect, useState, type FormEvent } from 'react';
+import { api, getApiErrorMessage } from '../api/axios.instance';
 import { clientesApi } from '../api/clientes.service';
 import type { Cliente, CondicionIva } from '../types/cliente.types';
 
@@ -13,11 +13,27 @@ export function ModalNuevoCliente({ onClose, onClienteCreado }: Props) {
   const [apellido, setApellido] = useState('');
   const [dni, setDni] = useState('');
   const [cuil, setCuil] = useState('');
-  const [condicionIva, setCondicionIva] = useState<CondicionIva>('CONSUMIDOR_FINAL');
+  const [condicionesIva, setCondicionesIva] = useState<CondicionIva[]>([]);
+  const [condicionIvaId, setCondicionIvaId] = useState('');
   const [cuentaCorrienteHabilitada, setCuentaCorrienteHabilitada] = useState(false);
   const [limiteCredito, setLimiteCredito] = useState(100000);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    api.get<CondicionIva[]>('/condiciones-iva')
+      .then(({ data }) => {
+        if (!active) return;
+        setCondicionesIva(data);
+        const consumidorFinal = data.find((condicion) => condicion.codigo === 'CONSUMIDOR_FINAL');
+        setCondicionIvaId(String(consumidorFinal?.idCondicionIva ?? data[0]?.idCondicionIva ?? ''));
+      })
+      .catch((requestError: unknown) => {
+        if (active) setError(getApiErrorMessage(requestError));
+      });
+    return () => { active = false; };
+  }, []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -25,14 +41,17 @@ export function ModalNuevoCliente({ onClose, onClienteCreado }: Props) {
     setEnviando(true);
 
     try {
-      const nuevo = await clientesApi.createCliente({
+      const nuevo = await clientesApi.createClientePersona({
         nombre: nombre.trim(),
         apellido: apellido.trim(),
         dni: dni.trim(),
         cuil: cuil.trim(),
-        condicionIva,
+        condicionIvaId: Number(condicionIvaId),
+        telefono: null,
+        correo: null,
+        direccion: null,
         cuentaCorrienteHabilitada,
-        limiteCredito: cuentaCorrienteHabilitada ? Number(limiteCredito) : 0,
+        limiteCredito: cuentaCorrienteHabilitada ? Number(limiteCredito) : undefined,
       });
       onClienteCreado(nuevo);
       onClose();
@@ -94,7 +113,7 @@ export function ModalNuevoCliente({ onClose, onClienteCreado }: Props) {
                   />
                 </div>
                 <div className="col-sm-6">
-                  <label className="form-label fw-semibold">CUIL / CUIT *</label>
+                  <label className="form-label fw-semibold">CUIL *</label>
                   <input
                     className="form-control"
                     required
@@ -109,13 +128,16 @@ export function ModalNuevoCliente({ onClose, onClienteCreado }: Props) {
                   <label className="form-label fw-semibold">Condición frente al IVA *</label>
                   <select
                     className="form-select"
-                    value={condicionIva}
-                    onChange={(e) => setCondicionIva(e.target.value as CondicionIva)}
+                    required
+                    value={condicionIvaId}
+                    onChange={(e) => setCondicionIvaId(e.target.value)}
                   >
-                    <option value="CONSUMIDOR_FINAL">Consumidor Final (Factura B)</option>
-                    <option value="RESPONSABLE_INSCRIPTO">Responsable Inscripto (Factura A)</option>
-                    <option value="MONOTRIBUTO">Monotributista (Factura B)</option>
-                    <option value="EXENTO">Exento (Factura C)</option>
+                    <option value="">Seleccione una condición fiscal</option>
+                    {condicionesIva.map((condicion) => (
+                      <option key={condicion.idCondicionIva} value={condicion.idCondicionIva}>
+                        {condicion.nombre}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -139,8 +161,8 @@ export function ModalNuevoCliente({ onClose, onClienteCreado }: Props) {
                     <label className="form-label fw-semibold">Límite de Crédito ($)</label>
                     <input
                       type="number"
-                      min={0}
-                      step={1000}
+                      min={0.01}
+                      step={0.01}
                       className="form-control"
                       value={limiteCredito}
                       onChange={(e) => setLimiteCredito(Number(e.target.value))}

@@ -1,4 +1,5 @@
 import {
+  Check,
   Column,
   CreateDateColumn,
   Entity,
@@ -15,6 +16,7 @@ const decimalTransformer = {
 };
 
 @Entity('facturas')
+@Check('CHK_factura_importes', '"subtotal" >= 0 AND "iva" >= 0 AND "total" > 0 AND "subtotal" + "iva" = "total"')
 export class Factura {
   @PrimaryGeneratedColumn({ name: 'id_factura' })
   idFactura: number;
@@ -27,6 +29,7 @@ export class Factura {
     name: 'tipo_factura',
     type: 'enum',
     enum: TipoFactura,
+    enumName: 'tipo_factura_enum',
   })
   tipoFactura: TipoFactura;
 

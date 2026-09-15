@@ -1,7 +1,9 @@
 import {
+  Check,
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
@@ -12,6 +14,9 @@ import { TipoMovimientoStock } from '../enums/tipo-movimiento-stock.enum';
 import { Venta } from './venta.entity';
 
 @Entity('movimientos_stock')
+@Check('CHK_movimiento_stock_cantidad', '"cantidad" > 0')
+@Check('CHK_movimiento_stock_saldos', '"stock_anterior" >= 0 AND "stock_posterior" >= 0')
+@Index('IDX_mov_stock_producto_fecha', ['producto', 'fecha'])
 export class MovimientoStock {
   @PrimaryGeneratedColumn({ name: 'id_movimiento_stock' })
   idMovimientoStock: number;
@@ -31,6 +36,7 @@ export class MovimientoStock {
   @Column({
     type: 'enum',
     enum: TipoMovimientoStock,
+    enumName: 'tipo_movimiento_stock_enum',
   })
   tipo: TipoMovimientoStock;
 

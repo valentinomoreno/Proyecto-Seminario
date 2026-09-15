@@ -60,7 +60,6 @@ describe('Sprint 1 (e2e)', () => {
     ]);
     const payload = {
       nombre: 'Producto E2E Test',
-      descripcion: 'Prueba integrada autogenerada',
       stock: 3,
       precioUnitario: 2000,
       categoriaId: categorias.body[0].idCategoria,
@@ -71,6 +70,7 @@ describe('Sprint 1 (e2e)', () => {
     testIds.producto = created.body.idProducto as number;
     const autoSku = created.body.sku as string;
     expect(autoSku).toMatch(/^PROD-\d{5}$/);
+    expect(created.body.descripcion).toBeNull();
 
     await request(app.getHttpServer()).get('/productos').auth(employeeToken, { type: 'bearer' }).query({ buscar: autoSku }).expect(200).expect(({ body }) => {
       expect(body.data).toHaveLength(1);

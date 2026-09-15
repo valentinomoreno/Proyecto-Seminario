@@ -1,10 +1,9 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Brackets, DataSource } from 'typeorm';
-import { CondicionIva } from '../../clientes/enums/condicion-iva.enum';
-import { TipoMovimientoCtaCorriente } from '../../clientes/enums/tipo-movimiento-cta-corriente.enum';
 import { Cliente } from '../../clientes/entities/cliente.entity';
-import { CuentaCorriente } from '../../clientes/entities/cuenta-corriente.entity';
-import { MovimientoCtaCorriente } from '../../clientes/entities/movimiento-cta-corriente.entity';
+import { CuentaCorriente } from '../../cuentas-corrientes/entities/cuenta-corriente.entity';
+import { MovimientoCtaCorriente } from '../../cuentas-corrientes/entities/movimiento-cta-corriente.entity';
+import { TipoMovimientoCtaCorriente } from '../../cuentas-corrientes/enums/tipo-movimiento-cta-corriente.enum';
 import { Producto } from '../../productos/entities/producto.entity';
 import { Usuario } from '../../usuarios/entities/usuario.entity';
 import { QueryVentasDto } from '../dto/query-ventas.dto';
@@ -14,7 +13,6 @@ import { Factura } from '../entities/factura.entity';
 import { MovimientoStock } from '../entities/movimiento-stock.entity';
 import { Venta } from '../entities/venta.entity';
 import { EstadoVenta } from '../enums/estado-venta.enum';
-import { MetodoCobro } from '../enums/metodo-cobro.enum';
 import { ModalidadPago } from '../enums/modalidad-pago.enum';
 import { TipoFactura } from '../enums/tipo-factura.enum';
 import { TipoMovimientoStock } from '../enums/tipo-movimiento-stock.enum';
@@ -23,6 +21,8 @@ import {
   IVentasRepository,
 } from './interfaces/ventas-repository.interface';
 
+const IVA_RATE = 0.21;
+
 @Injectable()
 export class TypeOrmVentasRepository implements IVentasRepository {
   constructor(private readonly dataSource: DataSource) {}
@@ -30,47 +30,34 @@ export class TypeOrmVentasRepository implements IVentasRepository {
   async findAndCount(query: QueryVentasDto): Promise<[Venta[], number]> {
     const page = query.page ?? 1;
     const limit = Math.min(query.limit ?? 20, 100);
-
-    const builder = this.dataSource
-      .getRepository(Venta)
-      .createQueryBuilder('venta')
-      .leftJoinAndSelect('venta.usuario', 'usuario')
-      .leftJoinAndSelect('venta.cliente', 'cliente')
-      .leftJoinAndSelect('cliente.persona', 'persona')
-      .leftJoinAndSelect('venta.detalles', 'detalles')
-      .leftJoinAndSelect('detalles.producto', 'producto')
-      .leftJoinAndSelect('venta.cobro', 'cobro')
-      .leftJoinAndSelect('venta.factura', 'factura')
+    const builder = this.baseQuery()
       .orderBy('venta.idVenta', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
 
     const buscar = query.buscar?.trim();
     if (buscar) {
+      const documento = buscar.replace(/[.\s-]/g, '');
       builder.andWhere(
-        new Brackets((qb) => {
-          qb.where('venta.numeroVenta ILIKE :buscar', { buscar: `%${buscar}%` })
+        new Brackets((where) => {
+          where
+            .where('venta.numeroVenta ILIKE :buscar', { buscar: `%${buscar}%` })
             .orWhere('persona.nombre ILIKE :buscar', { buscar: `%${buscar}%` })
             .orWhere('persona.apellido ILIKE :buscar', { buscar: `%${buscar}%` })
-            .orWhere('persona.dni ILIKE :buscar', { buscar: `%${buscar}%` });
+            .orWhere('empresa.razonSocial ILIKE :buscar', { buscar: `%${buscar}%` })
+            .orWhere('persona.dni ILIKE :documento', { documento: `%${documento}%` })
+            .orWhere('persona.cuil ILIKE :documento', { documento: `%${documento}%` })
+            .orWhere('empresa.cuit ILIKE :documento', { documento: `%${documento}%` });
         }),
       );
     }
-
     return builder.getManyAndCount();
   }
 
   async findById(id: number): Promise<Venta | null> {
-    return this.dataSource.getRepository(Venta).findOne({
-      where: { idVenta: id },
-      relations: {
-        usuario: true,
-        cliente: { persona: true, cuentaCorriente: true },
-        detalles: { producto: true },
-        cobro: true,
-        factura: true,
-      },
-    });
+    return this.baseQuery()
+      .where('venta.idVenta = :id', { id })
+      .getOne();
   }
 
   async registrarVentaTransaccional(datos: IRegistroVentaDatos): Promise<Venta> {
@@ -79,247 +66,230 @@ export class TypeOrmVentasRepository implements IVentasRepository {
     await queryRunner.startTransaction();
 
     try {
-      // 1. Prevenir interbloqueos (deadlocks) ordenando IDs de productos
-      const productIds = [...new Set(datos.items.map((i) => i.idProducto))].sort(
-        (a, b) => a - b,
-      );
+      const items = [...datos.items].sort((a, b) => a.idProducto - b.idProducto);
+      const productIds = items.map((item) => item.idProducto);
+      if (new Set(productIds).size !== productIds.length) {
+        throw new BadRequestException('Cada producto debe aparecer una sola vez en la venta.');
+      }
 
-      // 2. Bloqueo pesimista sobre los productos a vender (PESSIMISTIC_WRITE)
-      const lockedProducts = await queryRunner.manager
-        .createQueryBuilder(Producto, 'p')
+      const cliente = await queryRunner.manager
+        .getRepository(Cliente)
+        .createQueryBuilder('cliente')
+        .innerJoinAndSelect('cliente.condicionIva', 'condicionIva')
+        .leftJoinAndSelect('cliente.persona', 'persona')
+        .leftJoinAndSelect('cliente.empresa', 'empresa')
+        .where('cliente.idCliente = :idCliente', { idCliente: datos.idCliente })
+        .getOne();
+      if (!cliente) {
+        throw new NotFoundException(`El cliente con ID ${datos.idCliente} no existe.`);
+      }
+
+      const productos = await queryRunner.manager
+        .getRepository(Producto)
+        .createQueryBuilder('producto')
         .setLock('pessimistic_write')
-        .where('p.idProducto IN (:...ids)', { ids: productIds })
+        .where('producto.idProducto IN (:...productIds)', { productIds })
         .getMany();
+      const productosPorId = new Map(productos.map((producto) => [producto.idProducto, producto]));
 
-      const productMap = new Map(lockedProducts.map((p) => [p.idProducto, p]));
-
-      // 3. Verificación estricta de stock disponible (RNF-18)
-      for (const item of datos.items) {
-        const prod = productMap.get(item.idProducto);
-        if (!prod) {
+      for (const item of items) {
+        const producto = productosPorId.get(item.idProducto);
+        if (!producto) {
           throw new BadRequestException(
             `El producto con ID ${item.idProducto} no existe o fue dado de baja.`,
           );
         }
-        if (prod.stock < item.cantidad) {
+        if (producto.stock < item.cantidad) {
           throw new BadRequestException(
-            `Stock insuficiente para "${prod.nombre}". Disponible: ${prod.stock}, Solicitado: ${item.cantidad}.`,
+            `Stock insuficiente para "${producto.nombre}". Disponible: ${producto.stock}; solicitado: ${item.cantidad}.`,
           );
         }
       }
 
-      // 4. Calcular detalles, subtotales e importe total
-      const detallesParaGuardar: Array<{
-        producto: Producto;
-        cantidad: number;
-        precioUnitario: number;
-        subtotal: number;
-      }> = [];
+      const totalCentavos = items.reduce((total, item) => {
+        const producto = productosPorId.get(item.idProducto)!;
+        return total + Math.round(Number(producto.precioUnitario) * 100) * item.cantidad;
+      }, 0);
+      const total = totalCentavos / 100;
 
-      let totalVenta = 0;
-      for (const item of datos.items) {
-        const prod = productMap.get(item.idProducto)!;
-        const subtotalLinea = Math.round(item.cantidad * prod.precioUnitario * 100) / 100;
-        totalVenta += subtotalLinea;
-        detallesParaGuardar.push({
-          producto: prod,
-          cantidad: item.cantidad,
-          precioUnitario: prod.precioUnitario,
-          subtotal: subtotalLinea,
-        });
-      }
-      totalVenta = Math.round(totalVenta * 100) / 100;
-
-      // 5. Descontar stock físico y registrar Kardex (MovimientoStock)
-      const movimientosStock: MovimientoStock[] = [];
-      for (const item of datos.items) {
-        const prod = productMap.get(item.idProducto)!;
-        const stockAnterior = prod.stock;
-        prod.stock -= item.cantidad;
-        await queryRunner.manager.save(prod);
-
-        const movStock = queryRunner.manager.create(MovimientoStock, {
-          producto: prod,
-          usuario: { idUsuario: datos.idUsuario } as Usuario,
-          tipo: TipoMovimientoStock.SALIDA_VENTA,
-          cantidad: item.cantidad,
-          stockAnterior,
-          stockPosterior: prod.stock,
-          motivo: `Venta mostrador - ${item.cantidad} unidad(es)`,
-        });
-        movimientosStock.push(movStock);
+      let cuentaCorriente: CuentaCorriente | null = null;
+      if (datos.modalidadPago === ModalidadPago.CUENTA_CORRIENTE) {
+        cuentaCorriente = await queryRunner.manager
+          .getRepository(CuentaCorriente)
+          .createQueryBuilder('cuenta')
+          .setLock('pessimistic_write')
+          .where('cuenta.id_cliente = :idCliente', { idCliente: datos.idCliente })
+          .getOne();
+        if (!cuentaCorriente?.activa) {
+          throw new BadRequestException(
+            'La cuenta corriente del cliente no existe o no está activa.',
+          );
+        }
+        const saldoPosterior = this.redondear(cuentaCorriente.saldo + total);
+        if (saldoPosterior > cuentaCorriente.limiteCredito) {
+          throw new BadRequestException(
+            `Límite de crédito excedido. Disponible: $${Math.max(0, cuentaCorriente.limiteCredito - cuentaCorriente.saldo).toFixed(2)}; venta: $${total.toFixed(2)}.`,
+          );
+        }
       }
 
-      // 6. Generar número de venta correlativo
-      const vtaSeqRes = await queryRunner.query(
-        "SELECT nextval('venta_numero_seq') AS nextval",
-      );
-      const vtaSeq = vtaSeqRes[0]?.nextval ?? 1;
-      const numeroVenta = `VTA-${String(vtaSeq).padStart(8, '0')}`;
-
-      // 7. Determinar subtotal e IVA según condición fiscal
+      const numeroVenta = await this.siguienteNumero(queryRunner, 'venta_numero_seq', 'VTA');
       const esFacturaA =
-        datos.condicionIva === CondicionIva.RESPONSABLE_INSCRIPTO &&
-        datos.modalidadPago === ModalidadPago.CONTADO;
+        datos.modalidadPago === ModalidadPago.CONTADO &&
+        cliente.condicionIva.codigo === 'RESPONSABLE_INSCRIPTO';
+      const subtotalCentavos = esFacturaA
+        ? Math.round(totalCentavos / (1 + IVA_RATE))
+        : totalCentavos;
+      const subtotal = subtotalCentavos / 100;
+      const iva = (totalCentavos - subtotalCentavos) / 100;
 
-      let subtotalFinal = totalVenta;
-      let ivaFinal = 0;
-      if (esFacturaA) {
-        subtotalFinal = Math.round((totalVenta / 1.21) * 100) / 100;
-        ivaFinal = Math.round((totalVenta - subtotalFinal) * 100) / 100;
-      }
-
-      // 8. Crear y guardar cabecera de Venta
-      const nuevaVenta = queryRunner.manager.create(Venta, {
-        numeroVenta,
-        subtotal: subtotalFinal,
-        iva: ivaFinal,
-        total: totalVenta,
-        modalidadPago: datos.modalidadPago,
-        estado: EstadoVenta.COMPLETADA,
-        usuario: { idUsuario: datos.idUsuario } as Usuario,
-        cliente: { idCliente: datos.idCliente } as Cliente,
-      });
-      const ventaGuardada = await queryRunner.manager.save(nuevaVenta);
-
-      // 9. Guardar detalles de venta
-      const detallesEntidades = detallesParaGuardar.map((det) =>
-        queryRunner.manager.create(DetalleVenta, {
-          venta: ventaGuardada,
-          producto: det.producto,
-          cantidad: det.cantidad,
-          precioUnitario: det.precioUnitario,
-          subtotal: det.subtotal,
+      const venta = await queryRunner.manager.getRepository(Venta).save(
+        queryRunner.manager.getRepository(Venta).create({
+          numeroVenta,
+          subtotal,
+          iva,
+          total,
+          modalidadPago: datos.modalidadPago,
+          estado: EstadoVenta.COMPLETADA,
+          usuario: { idUsuario: datos.idUsuario } as Usuario,
+          cliente,
         }),
       );
-      await queryRunner.manager.save(detallesEntidades);
 
-      // 10. Asociar venta a los movimientos de stock
-      for (const mov of movimientosStock) {
-        mov.venta = ventaGuardada;
-        await queryRunner.manager.save(mov);
+      for (const item of items) {
+        const producto = productosPorId.get(item.idProducto)!;
+        const stockAnterior = producto.stock;
+        producto.stock -= item.cantidad;
+        await queryRunner.manager.getRepository(Producto).save(producto);
+
+        const subtotalLinea = Math.round(Number(producto.precioUnitario) * 100) * item.cantidad / 100;
+        await queryRunner.manager.getRepository(DetalleVenta).save(
+          queryRunner.manager.getRepository(DetalleVenta).create({
+            venta,
+            producto,
+            cantidad: item.cantidad,
+            precioUnitario: producto.precioUnitario,
+            subtotal: subtotalLinea,
+          }),
+        );
+        await queryRunner.manager.getRepository(MovimientoStock).save(
+          queryRunner.manager.getRepository(MovimientoStock).create({
+            venta,
+            producto,
+            usuario: { idUsuario: datos.idUsuario } as Usuario,
+            tipo: TipoMovimientoStock.SALIDA_VENTA,
+            cantidad: item.cantidad,
+            stockAnterior,
+            stockPosterior: producto.stock,
+            motivo: `Salida por venta ${numeroVenta}`,
+          }),
+        );
       }
 
-      // 11. Cobro y Facturación según modalidad
       if (datos.modalidadPago === ModalidadPago.CONTADO) {
-        // Registrar entidad Cobro
-        const cobro = queryRunner.manager.create(Cobro, {
-          venta: ventaGuardada,
-          metodoCobro: datos.metodoCobro ?? MetodoCobro.EFECTIVO,
-          monto: totalVenta,
-          referencia: datos.referenciaPago?.trim() || null,
-        });
-        await queryRunner.manager.save(cobro);
-
-        // Determinar tipo de factura
-        let tipoFactura = TipoFactura.FACTURA_B;
-        let seqName = 'factura_b_seq';
-        let prefijo = 'B-0001-';
-
-        if (datos.condicionIva === CondicionIva.RESPONSABLE_INSCRIPTO) {
-          tipoFactura = TipoFactura.FACTURA_A;
-          seqName = 'factura_a_seq';
-          prefijo = 'A-0001-';
-        } else if (datos.condicionIva === CondicionIva.EXENTO) {
-          tipoFactura = TipoFactura.FACTURA_C;
-          seqName = 'factura_c_seq';
-          prefijo = 'C-0001-';
-        }
-
-        const factSeqRes = await queryRunner.query(
-          `SELECT nextval('${seqName}') AS nextval`,
+        await queryRunner.manager.getRepository(Cobro).save(
+          queryRunner.manager.getRepository(Cobro).create({
+            venta,
+            metodoCobro: datos.metodoCobro!,
+            monto: total,
+            referencia: datos.referenciaPago ?? null,
+          }),
         );
-        const factSeq = factSeqRes[0]?.nextval ?? 1;
-        const numeroFactura = `${prefijo}${String(factSeq).padStart(8, '0')}`;
 
-        const caeSimulado = `${Math.floor(10000000000000 + Math.random() * 90000000000000)}`;
-        const fechaVencCae = new Date();
-        fechaVencCae.setDate(fechaVencCae.getDate() + 10);
-
-        const factura = queryRunner.manager.create(Factura, {
-          venta: ventaGuardada,
-          tipoFactura,
-          numeroFactura,
-          subtotal: subtotalFinal,
-          iva: ivaFinal,
-          total: totalVenta,
-          cae: caeSimulado,
-          fechaVencimientoCae: fechaVencCae,
-        });
-        await queryRunner.manager.save(factura);
+        const tipoFactura = this.tipoFacturaPara(cliente.condicionIva.codigo);
+        const numeroFactura = await this.siguienteNumero(
+          queryRunner,
+          'factura_numero_seq',
+          `${tipoFactura.replace('FACTURA_', '')}-0001`,
+        );
+        await queryRunner.manager.getRepository(Factura).save(
+          queryRunner.manager.getRepository(Factura).create({
+            venta,
+            tipoFactura,
+            numeroFactura,
+            subtotal,
+            iva,
+            total,
+            cae: null,
+            fechaVencimientoCae: null,
+          }),
+        );
       } else {
-        // Carga a Cuenta Corriente (CUENTA_CORRIENTE)
-        if (!datos.cuentaCorrienteHabilitada) {
-          throw new BadRequestException(
-            'El cliente seleccionado no tiene cuenta corriente habilitada.',
-          );
-        }
-
-        const ctaCte = await queryRunner.manager
-          .createQueryBuilder(CuentaCorriente, 'cta')
-          .setLock('pessimistic_write')
-          .where('cta.id_cliente = :idCliente', { idCliente: datos.idCliente })
-          .getOne();
-
-        if (!ctaCte || !ctaCte.activo) {
-          throw new BadRequestException(
-            'La cuenta corriente del cliente no se encuentra activa o no existe.',
-          );
-        }
-
-        const saldoActual = Number(ctaCte.saldo) || 0;
-        const limiteCredito = Number(ctaCte.limiteCredito) || 0;
-
-        if (limiteCredito > 0 && saldoActual + totalVenta > limiteCredito) {
-          throw new BadRequestException(
-            `Límite de crédito excedido. Límite: $${limiteCredito.toFixed(2)}, Saldo actual: $${saldoActual.toFixed(2)}, Compra: $${totalVenta.toFixed(2)}.`,
-          );
-        }
-
-        const saldoPosterior = Math.round((saldoActual + totalVenta) * 100) / 100;
-        ctaCte.saldo = saldoPosterior;
-        await queryRunner.manager.save(ctaCte);
-
-        // Movimiento de Cuenta Corriente (IMPUTACION_VENTA)
-        const movCta = queryRunner.manager.create(MovimientoCtaCorriente, {
-          cuentaCorriente: ctaCte,
-          idVenta: ventaGuardada.idVenta,
-          tipo: TipoMovimientoCtaCorriente.IMPUTACION_VENTA,
-          monto: totalVenta,
-          saldoPosterior,
-          descripcion: `Imputación por venta ${ventaGuardada.numeroVenta}`,
-        });
-        await queryRunner.manager.save(movCta);
-
-        // Emisión de Remito Comercial
-        const remSeqRes = await queryRunner.query(
-          "SELECT nextval('remito_numero_seq') AS nextval",
+        const saldoPosterior = this.redondear(cuentaCorriente!.saldo + total);
+        cuentaCorriente!.saldo = saldoPosterior;
+        await queryRunner.manager.getRepository(CuentaCorriente).save(cuentaCorriente!);
+        await queryRunner.manager.getRepository(MovimientoCtaCorriente).save(
+          queryRunner.manager.getRepository(MovimientoCtaCorriente).create({
+            cuentaCorriente: cuentaCorriente!,
+            venta,
+            tipo: TipoMovimientoCtaCorriente.IMPUTACION_VENTA,
+            monto: total,
+            saldoPosterior,
+            descripcion: `Imputación de ${numeroVenta}`,
+          }),
         );
-        const remSeq = remSeqRes[0]?.nextval ?? 1;
-        const numeroRemito = `REM-0001-${String(remSeq).padStart(8, '0')}`;
 
-        const remito = queryRunner.manager.create(Factura, {
-          venta: ventaGuardada,
-          tipoFactura: TipoFactura.REMITO,
-          numeroFactura: numeroRemito,
-          subtotal: totalVenta,
-          iva: 0,
-          total: totalVenta,
-          cae: null,
-          fechaVencimientoCae: null,
-        });
-        await queryRunner.manager.save(remito);
+        const numeroRemito = await this.siguienteNumero(queryRunner, 'remito_numero_seq', 'REM-0001');
+        await queryRunner.manager.getRepository(Factura).save(
+          queryRunner.manager.getRepository(Factura).create({
+            venta,
+            tipoFactura: TipoFactura.REMITO,
+            numeroFactura: numeroRemito,
+            subtotal: total,
+            iva: 0,
+            total,
+            cae: null,
+            fechaVencimientoCae: null,
+          }),
+        );
       }
 
       await queryRunner.commitTransaction();
-
-      // Devolver venta completa con todas sus relaciones
-      return (await this.findById(ventaGuardada.idVenta))!;
+      const ventaCompleta = await this.findById(venta.idVenta);
+      if (!ventaCompleta) throw new Error('No se pudo recuperar la venta registrada.');
+      return ventaCompleta;
     } catch (error) {
-      await queryRunner.rollbackTransaction();
+      if (queryRunner.isTransactionActive) await queryRunner.rollbackTransaction();
       throw error;
     } finally {
       await queryRunner.release();
     }
+  }
+
+  private baseQuery() {
+    return this.dataSource
+      .getRepository(Venta)
+      .createQueryBuilder('venta')
+      .leftJoinAndSelect('venta.usuario', 'usuario')
+      .leftJoinAndSelect('venta.cliente', 'cliente')
+      .leftJoinAndSelect('cliente.condicionIva', 'condicionIva')
+      .leftJoinAndSelect('cliente.persona', 'persona')
+      .leftJoinAndSelect('cliente.empresa', 'empresa')
+      .leftJoinAndSelect('cliente.cuentaCorriente', 'cuentaCorriente')
+      .leftJoinAndSelect('venta.detalles', 'detalles')
+      .leftJoinAndSelect('detalles.producto', 'producto')
+      .leftJoinAndSelect('venta.cobro', 'cobro')
+      .leftJoinAndSelect('venta.factura', 'factura');
+  }
+
+  private tipoFacturaPara(condicionIva: string): TipoFactura {
+    if (condicionIva === 'RESPONSABLE_INSCRIPTO') return TipoFactura.FACTURA_A;
+    if (condicionIva === 'EXENTO') return TipoFactura.FACTURA_C;
+    return TipoFactura.FACTURA_B;
+  }
+
+  private async siguienteNumero(
+    queryRunner: import('typeorm').QueryRunner,
+    secuencia: 'venta_numero_seq' | 'factura_numero_seq' | 'remito_numero_seq',
+    prefijo: string,
+  ): Promise<string> {
+    const result = await queryRunner.query(
+      `SELECT nextval('${secuencia}') AS nextval`,
+    ) as Array<{ nextval: string }>;
+    return `${prefijo}-${String(result[0]?.nextval ?? '1').padStart(8, '0')}`;
+  }
+
+  private redondear(value: number): number {
+    return Math.round(value * 100) / 100;
   }
 }

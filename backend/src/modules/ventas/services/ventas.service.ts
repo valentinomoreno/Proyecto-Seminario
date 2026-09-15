@@ -30,23 +30,15 @@ export class VentasService {
     const page = query.page ?? 1;
     const limit = Math.min(query.limit ?? 20, 100);
     const [ventas, total] = await this.repository.findAndCount(query);
-
     return {
       data: ventas,
-      meta: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   }
 
   async findOne(id: number): Promise<Venta> {
     const venta = await this.repository.findById(id);
-    if (!venta) {
-      throw new NotFoundException(`Venta #${id} no encontrada.`);
-    }
+    if (!venta) throw new NotFoundException(`Venta #${id} no encontrada.`);
     return venta;
   }
 
@@ -57,9 +49,14 @@ export class VentasService {
     }
 
     if (dto.modalidadPago === ModalidadPago.CUENTA_CORRIENTE) {
-      if (!cliente.cuentaCorrienteHabilitada) {
+      if (!cliente.cuentaCorriente?.activa) {
         throw new BadRequestException(
-          'El cliente seleccionado no tiene cuenta corriente habilitada.',
+          'El cliente seleccionado no tiene una cuenta corriente activa.',
+        );
+      }
+      if (dto.metodoCobro || dto.referenciaPago) {
+        throw new BadRequestException(
+          'Una venta a cuenta corriente no debe incluir datos de cobro.',
         );
       }
     }
@@ -70,15 +67,19 @@ export class VentasService {
       );
     }
 
+    const ids = dto.items.map((item) => item.idProducto);
+    if (new Set(ids).size !== ids.length) {
+      throw new BadRequestException(
+        'Cada producto debe aparecer una sola vez en la venta.',
+      );
+    }
+
     return this.repository.registrarVentaTransaccional({
       idUsuario,
       idCliente: cliente.idCliente,
-      condicionIva: cliente.condicionIva,
-      cuentaCorrienteHabilitada: cliente.cuentaCorrienteHabilitada,
-      limiteCredito: Number(cliente.limiteCredito) || 0,
       modalidadPago: dto.modalidadPago,
       metodoCobro: dto.metodoCobro,
-      referenciaPago: dto.referenciaPago,
+      referenciaPago: dto.referenciaPago?.trim() || undefined,
       items: dto.items,
     });
   }

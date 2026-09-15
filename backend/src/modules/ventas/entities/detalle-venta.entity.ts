@@ -1,9 +1,12 @@
 import {
+  Check,
   Column,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
+  Unique,
 } from 'typeorm';
 import { Producto } from '../../productos/entities/producto.entity';
 import { Venta } from './venta.entity';
@@ -14,6 +17,11 @@ const decimalTransformer = {
 };
 
 @Entity('detalles_venta')
+@Check('CHK_detalle_cantidad', '"cantidad" > 0')
+@Check('CHK_detalle_precio', '"precio_unitario" > 0')
+@Check('CHK_detalle_subtotal', '"subtotal" > 0')
+@Unique('UQ_detalle_venta_producto', ['venta', 'producto'])
+@Index('IDX_detalles_producto', ['producto'])
 export class DetalleVenta {
   @PrimaryGeneratedColumn({ name: 'id_detalle_venta' })
   idDetalleVenta: number;

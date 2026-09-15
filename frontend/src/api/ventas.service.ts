@@ -1,11 +1,12 @@
 import { api } from './axios.instance';
 import type { CreateVentaPayload, VentaResponse } from '../types/venta.types';
+import type { PaginatedResponse } from '../types/producto.types';
 
 export const ventasApi = {
-  async getVentas(buscar?: string, page = 1, limit = 20): Promise<{ data: VentaResponse[]; meta: any }> {
+  async getVentas(buscar?: string, page = 1, limit = 20): Promise<PaginatedResponse<VentaResponse>> {
     const params: Record<string, string | number> = { page, limit };
     if (buscar) params.buscar = buscar;
-    const response = await api.get<{ data: VentaResponse[]; meta: any }>('/ventas', { params });
+    const response = await api.get<PaginatedResponse<VentaResponse>>('/ventas', { params });
     return response.data;
   },
 

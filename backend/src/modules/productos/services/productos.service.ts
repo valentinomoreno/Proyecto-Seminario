@@ -56,7 +56,7 @@ export class ProductosService {
     const producto = this.repository.create({
       sku,
       nombre: dto.nombre.trim(),
-      descripcion: dto.descripcion.trim(),
+      descripcion: dto.descripcion?.trim() || null,
       stock: dto.stock,
       precioUnitario: dto.precioUnitario,
       imagenUrl: dto.imagenUrl?.trim() || null,
@@ -74,7 +74,7 @@ export class ProductosService {
     if (!producto) throw new NotFoundException('Producto no encontrado.');
 
     if (dto.nombre !== undefined) producto.nombre = dto.nombre.trim();
-    if (dto.descripcion !== undefined) producto.descripcion = dto.descripcion.trim();
+    if (dto.descripcion !== undefined) producto.descripcion = dto.descripcion?.trim() || null;
     if (dto.stock !== undefined) producto.stock = dto.stock;
     if (dto.precioUnitario !== undefined) producto.precioUnitario = dto.precioUnitario;
     if (dto.imagenUrl !== undefined) producto.imagenUrl = dto.imagenUrl?.trim() || null;

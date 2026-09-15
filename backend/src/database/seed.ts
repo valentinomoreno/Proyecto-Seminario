@@ -1,19 +1,20 @@
 import * as bcrypt from 'bcrypt';
 import { DeepPartial, EntityManager, ObjectLiteral } from 'typeorm';
 import { NombreRol } from '../common/enums/nombre-rol.enum';
+import { CondicionIva } from '../modules/clientes/entities/condicion-iva.entity';
+import { ClientePersona } from '../modules/clientes/entities/cliente-persona.entity';
+import { Cliente, TipoCliente } from '../modules/clientes/entities/cliente.entity';
+import { CuentaCorriente } from '../modules/cuentas-corrientes/entities/cuenta-corriente.entity';
 import { Categoria } from '../modules/productos/entities/categoria.entity';
 import { Deposito } from '../modules/productos/entities/deposito.entity';
 import { Estante } from '../modules/productos/entities/estante.entity';
 import { Marca } from '../modules/productos/entities/marca.entity';
+import { Producto } from '../modules/productos/entities/producto.entity';
 import { Sector } from '../modules/productos/entities/sector.entity';
 import { Empleado } from '../modules/usuarios/entities/empleado.entity';
 import { Persona } from '../modules/usuarios/entities/persona.entity';
 import { Rol } from '../modules/usuarios/entities/rol.entity';
 import { Usuario } from '../modules/usuarios/entities/usuario.entity';
-import { CondicionIva } from '../modules/clientes/enums/condicion-iva.enum';
-import { Cliente } from '../modules/clientes/entities/cliente.entity';
-import { CuentaCorriente } from '../modules/clientes/entities/cuenta-corriente.entity';
-import { Producto } from '../modules/productos/entities/producto.entity';
 import AppDataSource from './data-source';
 
 async function restoreOrCreate<T extends ObjectLiteral>(
@@ -47,6 +48,88 @@ function validateSeedPassword(password: string, envVarName: string): void {
   }
 }
 
+async function ensureClientePersona(
+  manager: EntityManager,
+  data: {
+    nombre: string;
+    apellido: string;
+    dni: string;
+    cuil: string;
+    condicionIvaCodigo: string;
+    limiteCredito?: number;
+  },
+): Promise<Cliente> {
+  const existente = await manager.getRepository(ClientePersona).findOne({
+    where: { dni: data.dni },
+    relations: { cliente: { cuentaCorriente: true } },
+  });
+  if (existente) return existente.cliente;
+
+  const condicionIva = await manager.getRepository(CondicionIva).findOneByOrFail({
+    codigo: data.condicionIvaCodigo,
+  });
+  const personaRegistro = await restoreOrCreate(manager, Persona, { dni: data.dni }, {
+    nombre: data.nombre,
+    apellido: data.apellido,
+    dni: data.dni,
+    cuil: data.cuil,
+  });
+  const cliente = await manager.getRepository(Cliente).save(manager.getRepository(Cliente).create({
+    tipo: TipoCliente.PERSONA,
+    telefono: null,
+    correo: null,
+    direccion: null,
+    condicionIva,
+  }));
+  await manager.getRepository(ClientePersona).save(manager.getRepository(ClientePersona).create({
+    nombre: data.nombre,
+    apellido: data.apellido,
+    dni: data.dni,
+    cuil: data.cuil,
+    cliente,
+    personaRegistro,
+  }));
+
+  if (data.limiteCredito !== undefined) {
+    const sequence = await manager.query<Array<{ nextval: string }>>(
+      "SELECT nextval('cuenta_corriente_numero_seq') AS nextval",
+    );
+    await manager.getRepository(CuentaCorriente).save(manager.getRepository(CuentaCorriente).create({
+      numeroCuenta: `CC-${String(sequence[0]?.nextval ?? '1').padStart(6, '0')}`,
+      saldo: 0,
+      limiteCredito: data.limiteCredito,
+      activa: true,
+      fechaBaja: null,
+      cliente,
+    }));
+  }
+  return cliente;
+}
+
+async function ensureProducto(
+  manager: EntityManager,
+  data: {
+    nombre: string;
+    descripcion: string;
+    stock: number;
+    precioUnitario: number;
+    categoria: Categoria;
+    marca: Marca;
+    estante: Estante;
+  },
+): Promise<void> {
+  const repository = manager.getRepository(Producto);
+  if (await repository.exists({ where: { nombre: data.nombre } })) return;
+  const sequence = await manager.query<Array<{ nextval: string }>>(
+    "SELECT nextval('producto_codigo_seq') AS nextval",
+  );
+  await repository.save(repository.create({
+    ...data,
+    sku: `PROD-${String(sequence[0]?.nextval ?? '1').padStart(5, '0')}`,
+    imagenUrl: null,
+  }));
+}
+
 async function seed(): Promise<void> {
   const adminUsername = process.env.SEED_ADMIN_USERNAME || 'admin';
   const adminPassword = process.env.SEED_ADMIN_PASSWORD || 'Admin_Seguro.2026!';
@@ -68,6 +151,15 @@ async function seed(): Promise<void> {
       nombre: NombreRol.EMPLEADO_VENTA,
       descripcion: 'Acceso operativo al catálogo y las ventas.',
     });
+
+    for (const condicion of [
+      { codigo: 'CONSUMIDOR_FINAL', nombre: 'Consumidor Final' },
+      { codigo: 'MONOTRIBUTO', nombre: 'Monotributo' },
+      { codigo: 'RESPONSABLE_INSCRIPTO', nombre: 'Responsable Inscripto' },
+      { codigo: 'EXENTO', nombre: 'Exento' },
+    ]) {
+      await restoreOrCreate(manager, CondicionIva, { codigo: condicion.codigo }, condicion);
+    }
 
     // 1. Usuario Administrador
     const personaAdmin = await restoreOrCreate(manager, Persona, { dni: '00000000' }, {
@@ -145,105 +237,72 @@ async function seed(): Promise<void> {
       }
     }
 
-    // 4. Clientes iniciales para pruebas de ventas y cuenta corriente
-    const personaCliente1 = await restoreOrCreate(manager, Persona, { dni: '30111222' }, {
+    // 4. Datos operativos de demostración para el mostrador.
+    await ensureClientePersona(manager, {
       nombre: 'Juan Carlos',
-      apellido: 'Pérez (Taller Pérez)',
+      apellido: 'Pérez',
       dni: '30111222',
-      cuil: '20301112229',
-    });
-    const cliente1 = await restoreOrCreate(manager, Cliente, { persona: { idPersona: personaCliente1.idPersona } } as Partial<Cliente>, {
-      persona: personaCliente1,
-      condicionIva: CondicionIva.RESPONSABLE_INSCRIPTO,
-      cuentaCorrienteHabilitada: true,
+      cuil: '20301112220',
+      condicionIvaCodigo: 'RESPONSABLE_INSCRIPTO',
       limiteCredito: 500000,
     });
-    await restoreOrCreate(manager, CuentaCorriente, { cliente: { idCliente: cliente1.idCliente } } as Partial<CuentaCorriente>, {
-      cliente: cliente1,
-      saldo: 0,
-      limiteCredito: 500000,
-      activo: true,
-    });
-
-    const personaCliente2 = await restoreOrCreate(manager, Persona, { dni: '40333444' }, {
+    await ensureClientePersona(manager, {
       nombre: 'María',
       apellido: 'González',
       dni: '40333444',
-      cuil: '27403334448',
+      cuil: '27403334443',
+      condicionIvaCodigo: 'CONSUMIDOR_FINAL',
     });
-    await restoreOrCreate(manager, Cliente, { persona: { idPersona: personaCliente2.idPersona } } as Partial<Cliente>, {
-      persona: personaCliente2,
-      condicionIva: CondicionIva.CONSUMIDOR_FINAL,
-      cuentaCorrienteHabilitada: false,
-      limiteCredito: 0,
-    });
-
-    const personaCliente3 = await restoreOrCreate(manager, Persona, { dni: '25555666' }, {
+    await ensureClientePersona(manager, {
       nombre: 'Roberto',
-      apellido: 'Martínez (Fletes Martínez)',
+      apellido: 'Martínez',
       dni: '25555666',
-      cuil: '20255556667',
-    });
-    const cliente3 = await restoreOrCreate(manager, Cliente, { persona: { idPersona: personaCliente3.idPersona } } as Partial<Cliente>, {
-      persona: personaCliente3,
-      condicionIva: CondicionIva.MONOTRIBUTO,
-      cuentaCorrienteHabilitada: true,
+      cuil: '20255556666',
+      condicionIvaCodigo: 'MONOTRIBUTO',
       limiteCredito: 200000,
     });
-    await restoreOrCreate(manager, CuentaCorriente, { cliente: { idCliente: cliente3.idCliente } } as Partial<CuentaCorriente>, {
-      cliente: cliente3,
-      saldo: 0,
-      limiteCredito: 200000,
-      activo: true,
+
+    const categoriaFrenos = await manager.getRepository(Categoria).findOneByOrFail({ nombre: 'Frenos' });
+    const categoriaMotor = await manager.getRepository(Categoria).findOneByOrFail({ nombre: 'Motor' });
+    const categoriaElectricidad = await manager.getRepository(Categoria).findOneByOrFail({ nombre: 'Electricidad' });
+    const marcaBosch = await manager.getRepository(Marca).findOneByOrFail({ nombre: 'Bosch' });
+    const marcaNgk = await manager.getRepository(Marca).findOneByOrFail({ nombre: 'NGK' });
+    const estanteA1 = await manager.getRepository(Estante).findOne({
+      where: { codigo: 'A-01' },
+      relations: { sector: true },
     });
+    if (!estanteA1) throw new Error('No se pudo preparar el estante inicial A-01.');
 
-    // 5. Productos con stock para pruebas de mostrador
-    const catFrenos = await manager.getRepository(Categoria).findOneBy({ nombre: 'Frenos' });
-    const catMotor = await manager.getRepository(Categoria).findOneBy({ nombre: 'Motor' });
-    const catElec = await manager.getRepository(Categoria).findOneBy({ nombre: 'Electricidad' });
-    const marcaBosch = await manager.getRepository(Marca).findOneBy({ nombre: 'Bosch' });
-    const marcaNgk = await manager.getRepository(Marca).findOneBy({ nombre: 'NGK' });
-    const estanteA1 = await manager.getRepository(Estante).findOneBy({ codigo: 'A-01' });
-
-    if (catFrenos && marcaBosch && estanteA1) {
-      await restoreOrCreate(manager, Producto, { sku: 'PROD-00001' }, {
-        sku: 'PROD-00001',
-        nombre: 'Pastillas de Freno Delanteras',
-        descripcion: 'Juego de pastillas de freno cerámicas para tren delantero.',
-        stock: 50,
-        precioUnitario: 35000,
-        categoria: catFrenos,
-        marca: marcaBosch,
-        estante: estanteA1,
-      });
-    }
-    if (catMotor && marcaNgk && estanteA1) {
-      await restoreOrCreate(manager, Producto, { sku: 'PROD-00002' }, {
-        sku: 'PROD-00002',
-        nombre: 'Bujías de Encendido Iridium (x4)',
-        descripcion: 'Kit de 4 bujías de alto rendimiento.',
-        stock: 30,
-        precioUnitario: 28000,
-        categoria: catMotor,
-        marca: marcaNgk,
-        estante: estanteA1,
-      });
-    }
-    if (catElec && marcaBosch && estanteA1) {
-      await restoreOrCreate(manager, Producto, { sku: 'PROD-00003' }, {
-        sku: 'PROD-00003',
-        nombre: 'Batería 12V 75Ah Libre Mantenimiento',
-        descripcion: 'Batería reforzada para arranque pesado.',
-        stock: 15,
-        precioUnitario: 120000,
-        categoria: catElec,
-        marca: marcaBosch,
-        estante: estanteA1,
-      });
-    }
+    await ensureProducto(manager, {
+      nombre: 'Pastillas de freno delanteras',
+      descripcion: 'Juego de pastillas cerámicas para tren delantero.',
+      stock: 50,
+      precioUnitario: 35000,
+      categoria: categoriaFrenos,
+      marca: marcaBosch,
+      estante: estanteA1,
+    });
+    await ensureProducto(manager, {
+      nombre: 'Bujías de encendido Iridium x4',
+      descripcion: 'Kit de cuatro bujías de alto rendimiento.',
+      stock: 30,
+      precioUnitario: 28000,
+      categoria: categoriaMotor,
+      marca: marcaNgk,
+      estante: estanteA1,
+    });
+    await ensureProducto(manager, {
+      nombre: 'Batería 12V 75Ah',
+      descripcion: 'Batería libre de mantenimiento para arranque pesado.',
+      stock: 15,
+      precioUnitario: 120000,
+      categoria: categoriaElectricidad,
+      marca: marcaBosch,
+      estante: estanteA1,
+    });
   });
   await AppDataSource.destroy();
-  console.info('Seed inicial completado con usuarios Administrador y Vendedor.');
+  console.info('Seed completado con usuarios, catálogo y datos operativos del POS.');
 }
 
 seed().catch(async (error: unknown) => {

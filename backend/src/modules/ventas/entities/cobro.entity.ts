@@ -1,4 +1,5 @@
 import {
+  Check,
   Column,
   CreateDateColumn,
   Entity,
@@ -15,6 +16,7 @@ const decimalTransformer = {
 };
 
 @Entity('cobros')
+@Check('CHK_cobro_monto', '"monto" > 0')
 export class Cobro {
   @PrimaryGeneratedColumn({ name: 'id_cobro' })
   idCobro: number;
@@ -27,6 +29,7 @@ export class Cobro {
     name: 'metodo_cobro',
     type: 'enum',
     enum: MetodoCobro,
+    enumName: 'metodo_cobro_enum',
   })
   metodoCobro: MetodoCobro;
 

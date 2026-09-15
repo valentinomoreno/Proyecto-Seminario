@@ -1,6 +1,6 @@
 # Sistema de Gestión Integral para Local de Autopartes
 
-Proyecto de Seminario Integrador (UTN). El Sprint 1 implementa autenticación JWT con roles, catálogo de productos, stock y ubicación física mediante Depósito → Sector → Estante.
+Proyecto de Seminario Integrador (UTN). Los Sprint 1 a 3 implementan autenticación JWT con roles, catálogo y stock, clientes, cuentas corrientes y el núcleo transaccional de ventas, cobros, comprobantes y POS.
 
 ## Requisitos
 
@@ -40,9 +40,42 @@ npm run db:seed             # Seed idempotente
 
 `GET /productos?buscar=filtro&page=1&limit=10` devuelve productos paginados con categoría, marca y ubicación completa. Los endpoints `GET /sectores?depositoId=1` y `GET /estantes?sectorId=1` permiten construir selecciones dependientes.
 
+## API del Sprint 2
+
+Los recursos de clientes requieren Bearer JWT. Administrador y Empleado de Venta pueden consultar el catálogo `GET /condiciones-iva`, buscar clientes con `GET /clientes?buscar=...`, registrar particulares o empresas, actualizar sus datos de contacto y habilitar cuentas corrientes.
+
+```text
+GET    /condiciones-iva
+GET    /clientes?buscar=&page=1&limit=10
+GET    /clientes/:id
+POST   /clientes/persona
+POST   /clientes/empresa
+PUT    /clientes/:id
+DELETE /clientes/:id
+GET    /cuentas-corrientes?page=1&limit=10
+POST   /cuentas-corrientes
+DELETE /cuentas-corrientes/:id
+```
+
+Las bajas de clientes y cuentas corrientes son exclusivas del Administrador. Una cuenta solo puede darse de baja con saldo cero; al reactivarla conserva su número `CC-000001` y vuelve a saldo cero. La baja de un cliente se rechaza mientras mantenga una cuenta activa.
+
+## API y POS del Sprint 3
+
+El POS protegido está disponible en `/pos`. Permite buscar productos, seleccionar o registrar rápidamente un cliente, cobrar al contado o imputar a cuenta corriente y visualizar el comprobante resultante.
+
+```text
+GET  /ventas?buscar=&page=1&limit=20
+GET  /ventas/:id
+POST /ventas
+```
+
+`POST /ventas` recibe `idCliente`, `modalidadPago` e `items` con `idProducto` y `cantidad`. Para contado también requiere `metodoCobro`; para cuenta corriente no acepta datos de cobro. El alta rápida de cliente puede enviar `cuentaCorrienteHabilitada` y `limiteCredito` a `POST /clientes/persona` o `POST /clientes/empresa`.
+
+Cada venta se ejecuta en una transacción con bloqueo pesimista de productos. La operación valida y descuenta stock, registra Kardex y genera Cobro + Factura A/B/C para contado, o Movimiento de Cuenta Corriente + Remito para crédito. Los números de comprobante son correlativos internos. Mientras no se integre un proveedor fiscal/ARCA, las facturas quedan sin CAE y la interfaz las identifica como pendientes de autorización fiscal; no deben considerarse comprobantes fiscales válidos.
+
 ## Estructura
 
-- `backend/src/modules/`: módulos NestJS de autenticación, usuarios y productos.
+- `backend/src/modules/`: módulos NestJS de autenticación, usuarios, productos, clientes y cuentas corrientes.
 - `backend/src/database/`: configuración TypeORM, migración y seed.
 - `frontend/src/`: contexto de sesión, cliente HTTP, rutas protegidas y vistas.
 

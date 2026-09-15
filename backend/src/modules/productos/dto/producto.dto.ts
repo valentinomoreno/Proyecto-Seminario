@@ -7,10 +7,10 @@ export class CreateProductoDto {
   @MaxLength(120)
   nombre: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(2000)
-  descripcion: string;
+  descripcion?: string | null;
 
   @IsInt()
   @Min(0)
@@ -40,7 +40,7 @@ export class CreateProductoDto {
 
 export class UpdateProductoDto {
   @IsOptional() @IsString() @IsNotEmpty() @MaxLength(120) nombre?: string;
-  @IsOptional() @IsString() @IsNotEmpty() @MaxLength(2000) descripcion?: string;
+  @IsOptional() @IsString() @MaxLength(2000) descripcion?: string | null;
   @IsOptional() @IsInt() @Min(0) stock?: number;
   @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @IsPositive() precioUnitario?: number;
   @IsOptional() @IsString() @MaxLength(255) imagenUrl?: string | null;

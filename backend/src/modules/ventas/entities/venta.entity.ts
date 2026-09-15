@@ -1,7 +1,9 @@
 import {
+  Check,
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   OneToMany,
@@ -23,6 +25,9 @@ const decimalTransformer = {
 };
 
 @Entity('ventas')
+@Check('CHK_venta_importes', '"subtotal" >= 0 AND "iva" >= 0 AND "total" > 0 AND "subtotal" + "iva" = "total"')
+@Index('IDX_ventas_fecha', ['fecha'])
+@Index('IDX_ventas_cliente', ['cliente'])
 export class Venta {
   @PrimaryGeneratedColumn({ name: 'id_venta' })
   idVenta: number;
@@ -62,12 +67,14 @@ export class Venta {
     name: 'modalidad_pago',
     type: 'enum',
     enum: ModalidadPago,
+    enumName: 'modalidad_pago_enum',
   })
   modalidadPago: ModalidadPago;
 
   @Column({
     type: 'enum',
     enum: EstadoVenta,
+    enumName: 'estado_venta_enum',
     default: EstadoVenta.COMPLETADA,
   })
   estado: EstadoVenta;
