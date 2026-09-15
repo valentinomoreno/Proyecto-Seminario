@@ -2,16 +2,16 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { DataSource } from 'typeorm';
 import { CuentaCorriente } from '../../cuentas-corrientes/entities/cuenta-corriente.entity';
-import { MovimientoCtaCte } from '../../cuentas-corrientes/entities/movimiento-cta-cte.entity';
-import { TipoMovimientoCtaCte } from '../../cuentas-corrientes/enums/tipo-movimiento-cta-cte.enum';
+import { MovimientoCtaCorriente } from '../../cuentas-corrientes/entities/movimiento-cta-corriente.entity';
+import { TipoMovimientoCtaCorriente } from '../../cuentas-corrientes/enums/tipo-movimiento-cta-corriente.enum';
 import {
   CUENTAS_CORRIENTES_REPOSITORY,
   ICuentasCorrientesRepository,
 } from '../../cuentas-corrientes/repositories/interfaces/cuentas-corrientes-repository.interface';
 import {
-  IMovimientosCtaCteRepository,
-  MOVIMIENTOS_CTA_CTE_REPOSITORY,
-} from '../../cuentas-corrientes/repositories/interfaces/movimientos-cta-cte-repository.interface';
+  IMovimientosCtaCorrienteRepository,
+  MOVIMIENTOS_CTA_CORRIENTE_REPOSITORY,
+} from '../../cuentas-corrientes/repositories/interfaces/movimientos-cta-corriente-repository.interface';
 import { DIA_INICIO_MORA, TASA_MORA_MENSUAL, ZONA_HORARIA_NEGOCIO } from '../notificaciones.constants';
 
 export interface ResumenMora {
@@ -30,7 +30,7 @@ export class MoraService {
 
   constructor(
     @Inject(CUENTAS_CORRIENTES_REPOSITORY) private readonly cuentasRepository: ICuentasCorrientesRepository,
-    @Inject(MOVIMIENTOS_CTA_CTE_REPOSITORY) private readonly movimientosRepository: IMovimientosCtaCteRepository,
+    @Inject(MOVIMIENTOS_CTA_CORRIENTE_REPOSITORY) private readonly movimientosRepository: IMovimientosCtaCorrienteRepository,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -79,7 +79,7 @@ export class MoraService {
   private aplicarMoraACuenta(idCuentaCorriente: number): Promise<boolean> {
     return this.dataSource.transaction(async (manager) => {
       const cuentasRepository = manager.getRepository(CuentaCorriente);
-      const movimientosRepository = manager.getRepository(MovimientoCtaCte);
+      const movimientosRepository = manager.getRepository(MovimientoCtaCorriente);
 
       // Bloqueo pesimista por PK: el filtro debe ser sobre la clave primaria, nunca
       // sobre la relación `cliente`, porque el LEFT JOIN resultante rompe el FOR UPDATE.
@@ -95,20 +95,19 @@ export class MoraService {
       const recargo = this.redondear(saldo * TASA_MORA_MENSUAL);
       if (recargo <= 0) return false;
 
-      const saldoResultante = this.redondear(saldo + recargo);
+      const saldoPosterior = this.redondear(saldo + recargo);
 
       const movimiento = movimientosRepository.create({
         cuentaCorriente: cuenta,
-        tipo: TipoMovimientoCtaCte.MORA,
+        tipo: TipoMovimientoCtaCorriente.MORA,
         monto: recargo,
-        saldoResultante,
-        idVenta: null,
-        empleado: null,
-        observaciones: `Mora automática del ${(TASA_MORA_MENSUAL * 100).toFixed(0)}% sobre el saldo impago.`,
+        saldoPosterior,
+        venta: null,
+        descripcion: `Mora automática del ${(TASA_MORA_MENSUAL * 100).toFixed(0)}% sobre el saldo impago.`,
       });
       await movimientosRepository.save(movimiento);
 
-      cuenta.saldo = saldoResultante;
+      cuenta.saldo = saldoPosterior;
       await cuentasRepository.save(cuenta);
 
       return true;

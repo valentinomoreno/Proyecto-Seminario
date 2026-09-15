@@ -12,10 +12,15 @@ import { formatearFechaHora, formatearMonto } from '../utils/formato';
 
 const ETIQUETAS_MOVIMIENTO: Record<TipoMovimientoCtaCte, { texto: string; clase: string; icono: string }> = {
   IMPUTACION_VENTA: { texto: 'Imputación de venta', clase: 'bg-light-primary text-primary', icono: 'ti-shopping-cart' },
-  PAGO: { texto: 'Pago', clase: 'bg-light-success text-success', icono: 'ti-cash' },
+  COBRO_CUENTA: { texto: 'Pago', clase: 'bg-light-success text-success', icono: 'ti-cash' },
+  AJUSTE: { texto: 'Ajuste', clase: 'bg-light-secondary text-secondary', icono: 'ti-adjustments' },
   MORA: { texto: 'Mora', clase: 'bg-light-danger text-danger', icono: 'ti-alert-triangle' },
   NOTA_CREDITO: { texto: 'Nota de crédito', clase: 'bg-light-warning text-warning', icono: 'ti-receipt-refund' },
 };
+
+// El backend guarda `monto` siempre positivo (CHECK de la tabla); la dirección
+// del movimiento sobre la deuda la determina el `tipo`, no el signo del valor.
+const TIPOS_QUE_AUMENTAN_DEUDA: ReadonlySet<TipoMovimientoCtaCte> = new Set(['IMPUTACION_VENTA', 'MORA']);
 
 export function DetalleDeudaPage() {
   const { idCliente } = useParams();
@@ -197,7 +202,7 @@ export function DetalleDeudaPage() {
                     {cuenta.movimientos.map((movimiento) => {
                       const etiqueta = ETIQUETAS_MOVIMIENTO[movimiento.tipo];
                       const montoMovimiento = Number(movimiento.monto ?? 0);
-                      const aumentaDeuda = montoMovimiento > 0;
+                      const aumentaDeuda = TIPOS_QUE_AUMENTAN_DEUDA.has(movimiento.tipo);
                       return (
                         <tr key={movimiento.idMovimientoCtaCte}>
                           <td className="small text-muted">{formatearFechaHora(movimiento.fecha)}</td>
@@ -212,7 +217,7 @@ export function DetalleDeudaPage() {
                             {aumentaDeuda ? '+' : '−'} $ {formatearMonto(Math.abs(montoMovimiento))}
                           </td>
                           <td className="text-end font-monospace">
-                            $ {formatearMonto(movimiento.saldoResultante)}
+                            $ {formatearMonto(movimiento.saldoPosterior)}
                           </td>
                         </tr>
                       );

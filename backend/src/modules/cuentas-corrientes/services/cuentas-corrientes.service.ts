@@ -11,19 +11,18 @@ import {
   CLIENTES_REPOSITORY,
   IClientesRepository,
 } from '../../clientes/repositories/interfaces/clientes-repository.interface';
-import { Empleado } from '../../usuarios/entities/empleado.entity';
 import { CreateCuentaCorrienteDto, QueryCuentasCorrientesDto, RegistrarPagoDto } from '../dto/cuenta-corriente.dto';
 import { CuentaCorriente } from '../entities/cuenta-corriente.entity';
-import { MovimientoCtaCte } from '../entities/movimiento-cta-cte.entity';
-import { TipoMovimientoCtaCte } from '../enums/tipo-movimiento-cta-cte.enum';
+import { MovimientoCtaCorriente } from '../entities/movimiento-cta-corriente.entity';
+import { TipoMovimientoCtaCorriente } from '../enums/tipo-movimiento-cta-corriente.enum';
 import {
   CUENTAS_CORRIENTES_REPOSITORY,
   ICuentasCorrientesRepository,
 } from '../repositories/interfaces/cuentas-corrientes-repository.interface';
 import {
-  IMovimientosCtaCteRepository,
-  MOVIMIENTOS_CTA_CTE_REPOSITORY,
-} from '../repositories/interfaces/movimientos-cta-cte-repository.interface';
+  IMovimientosCtaCorrienteRepository,
+  MOVIMIENTOS_CTA_CORRIENTE_REPOSITORY,
+} from '../repositories/interfaces/movimientos-cta-corriente-repository.interface';
 
 interface PostgresError {
   code?: string;
@@ -36,8 +35,8 @@ export class CuentasCorrientesService {
     private readonly repository: ICuentasCorrientesRepository,
     @Inject(CLIENTES_REPOSITORY)
     private readonly clientesRepository: IClientesRepository,
-    @Inject(MOVIMIENTOS_CTA_CTE_REPOSITORY)
-    private readonly movimientosRepository: IMovimientosCtaCteRepository,
+    @Inject(MOVIMIENTOS_CTA_CORRIENTE_REPOSITORY)
+    private readonly movimientosRepository: IMovimientosCtaCorrienteRepository,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -65,12 +64,20 @@ export class CuentasCorrientesService {
         existing.activa = true;
         existing.fechaBaja = null;
         existing.saldo = 0;
+        existing.limiteCredito = dto.limiteCredito ?? 0;
         await this.repository.save(existing);
         return this.toResponse(await this.requireCuenta(existing.idCuentaCorriente));
       }
 
       const numeroCuenta = await this.repository.generateNextNumber();
-      const cuenta = this.repository.create({ numeroCuenta, saldo: 0, activa: true, fechaBaja: null, cliente });
+      const cuenta = this.repository.create({
+        numeroCuenta,
+        saldo: 0,
+        limiteCredito: dto.limiteCredito ?? 0,
+        activa: true,
+        fechaBaja: null,
+        cliente,
+      });
       const saved = await this.repository.save(cuenta);
       return this.toResponse(await this.requireCuenta(saved.idCuentaCorriente));
     } catch (error) {
@@ -92,8 +99,9 @@ export class CuentasCorrientesService {
   }
 
   /**
-   * Pago manual imputado sobre la cuenta corriente: registra un MovimientoCtaCte
-   * de tipo PAGO (monto negativo) y descuenta el saldo de forma atómica.
+   * Pago manual imputado sobre la cuenta corriente: registra un MovimientoCtaCorriente
+   * de tipo COBRO_CUENTA (monto siempre positivo, según el CHECK de la tabla) y
+   * descuenta el saldo de forma atómica.
    */
   async registrarPago(idCliente: number, dto: RegistrarPagoDto, idEmpleado: number | null) {
     const cuentaActual = await this.requireCuentaDeCliente(idCliente);
@@ -103,7 +111,7 @@ export class CuentasCorrientesService {
 
     const movimiento = await this.dataSource.transaction(async (manager) => {
       const cuentasRepository = manager.getRepository(CuentaCorriente);
-      const movimientosRepository = manager.getRepository(MovimientoCtaCte);
+      const movimientosRepository = manager.getRepository(MovimientoCtaCorriente);
 
       // Bloqueo pesimista por PK: el filtro debe ser sobre la clave primaria, nunca
       // sobre la relación `cliente`, porque el LEFT JOIN resultante rompe el FOR UPDATE.
@@ -121,20 +129,22 @@ export class CuentasCorrientesService {
         );
       }
 
-      const saldoResultante = this.redondear(saldo - monto);
+      const saldoPosterior = this.redondear(saldo - monto);
+      const descripcion = idEmpleado === null
+        ? (dto.observaciones ?? 'Pago manual registrado por administración.')
+        : `${dto.observaciones ?? 'Pago manual registrado por administración.'} (legajo empleado #${idEmpleado})`;
       const guardado = await movimientosRepository.save(
         movimientosRepository.create({
           cuentaCorriente: cuenta,
-          tipo: TipoMovimientoCtaCte.PAGO,
-          monto: -monto,
-          saldoResultante,
-          idVenta: null,
-          empleado: idEmpleado === null ? null : manager.getRepository(Empleado).create({ idEmpleado }),
-          observaciones: dto.observaciones ?? null,
+          tipo: TipoMovimientoCtaCorriente.COBRO_CUENTA,
+          monto,
+          saldoPosterior,
+          venta: null,
+          descripcion,
         }),
       );
 
-      cuenta.saldo = saldoResultante;
+      cuenta.saldo = saldoPosterior;
       await cuentasRepository.save(cuenta);
       return guardado;
     });
@@ -174,10 +184,14 @@ export class CuentasCorrientesService {
   }
 
   private toResponse(cuenta: CuentaCorriente) {
+    const limiteCredito = Number(cuenta.limiteCredito) || 0;
+    const saldo = Number(cuenta.saldo) || 0;
     return {
       idCuentaCorriente: cuenta.idCuentaCorriente,
       numeroCuenta: cuenta.numeroCuenta,
-      saldo: cuenta.saldo,
+      saldo,
+      limiteCredito,
+      creditoDisponible: Math.max(0, limiteCredito - saldo),
       estado: cuenta.activa ? 'ACTIVA' : 'INACTIVA',
       fechaAlta: cuenta.fechaAlta,
       fechaBaja: cuenta.fechaBaja,
@@ -185,15 +199,15 @@ export class CuentasCorrientesService {
     };
   }
 
-  private toMovimientoResponse(movimiento: MovimientoCtaCte) {
+  private toMovimientoResponse(movimiento: MovimientoCtaCorriente) {
     return {
       idMovimientoCtaCte: movimiento.idMovimientoCtaCte,
       tipo: movimiento.tipo,
       monto: Number(movimiento.monto),
-      saldoResultante: Number(movimiento.saldoResultante),
+      saldoPosterior: Number(movimiento.saldoPosterior),
       fecha: movimiento.fecha,
-      idVenta: movimiento.idVenta,
-      observaciones: movimiento.observaciones,
+      idVenta: movimiento.venta?.idVenta ?? null,
+      observaciones: movimiento.descripcion,
     };
   }
 

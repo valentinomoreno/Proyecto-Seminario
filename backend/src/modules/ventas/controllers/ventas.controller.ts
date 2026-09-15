@@ -1,11 +1,22 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Post, Query, UseGuards } from '@nestjs/common';
-import { CurrentUser } from '../../../common/decorators/current-user.decorator';
-import { Roles } from '../../../common/decorators/roles.decorator';
-import { NombreRol } from '../../../common/enums/nombre-rol.enum';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import { Request } from 'express';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
+import { Roles } from '../../../common/decorators/roles.decorator';
+import { NombreRol } from '../../../common/enums/nombre-rol.enum';
 import { UsuarioAutenticado } from '../../../common/interfaces/usuario-autenticado.interface';
-import { CreateVentaDto, QueryVentasDto } from '../dto/venta.dto';
+import { CreateVentaDto } from '../dto/create-venta.dto';
+import { QueryVentasDto } from '../dto/query-ventas.dto';
 import { VentasService } from '../services/ventas.service';
 
 @Controller('ventas')
@@ -14,19 +25,21 @@ export class VentasController {
   constructor(private readonly service: VentasService) {}
 
   @Get()
-  findAll(@Query() query: QueryVentasDto) { return this.service.findAll(query); }
-
-  @Get('comprobante/:numeroComprobante')
-  findByComprobante(@Param('numeroComprobante') numeroComprobante: string) {
-    return this.service.findByComprobante(numeroComprobante);
+  @Roles(NombreRol.ADMINISTRADOR, NombreRol.EMPLEADO_VENTA)
+  findAll(@Query() query: QueryVentasDto) {
+    return this.service.findAll(query);
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) { return this.service.findOne(id); }
+  @Roles(NombreRol.ADMINISTRADOR, NombreRol.EMPLEADO_VENTA)
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.service.findOne(id);
+  }
 
   @Post()
   @Roles(NombreRol.ADMINISTRADOR, NombreRol.EMPLEADO_VENTA)
-  create(@Body() dto: CreateVentaDto, @CurrentUser() usuario: UsuarioAutenticado) {
-    return this.service.create(dto, usuario);
+  create(@Req() req: Request, @Body() dto: CreateVentaDto) {
+    const usuario = req.user as UsuarioAutenticado;
+    return this.service.registrarVenta(usuario.idUsuario, dto);
   }
 }

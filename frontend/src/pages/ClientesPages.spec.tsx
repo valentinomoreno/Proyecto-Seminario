@@ -80,6 +80,8 @@ describe('pantallas de clientes', () => {
 
     renderList('EMPLEADO_VENTA', cliente);
     expect(await screen.findByText('Pérez, Ana')).toBeInTheDocument();
+    expect(screen.getByText('DNI 12345678')).toBeInTheDocument();
+    expect(screen.getByText('CUIL 20-12345678-6')).toBeInTheDocument();
     expect(screen.queryByTitle('Dar de baja la cuenta')).not.toBeInTheDocument();
     expect(screen.queryByTitle('Debe dar de baja la cuenta primero')).not.toBeInTheDocument();
   });
@@ -98,6 +100,7 @@ describe('pantallas de clientes', () => {
     };
 
     renderList('ADMINISTRADOR', cliente);
+    expect(await screen.findByText('CUIT 30-12345678-1')).toBeInTheDocument();
     expect(await screen.findByTitle('Dar de baja la cuenta')).toBeInTheDocument();
     expect(screen.getByTitle('Debe dar de baja la cuenta primero')).toBeInTheDocument();
   });

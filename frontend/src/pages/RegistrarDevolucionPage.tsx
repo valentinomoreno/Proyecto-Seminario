@@ -2,15 +2,19 @@ import { type FormEvent, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, getApiErrorMessage } from '../api/axios.instance';
 import type { Devolucion, DevolucionPayload } from '../types/devolucion.types';
-import type { Venta } from '../types/venta.types';
+import type { DetalleVentaResponse, VentaResponse } from '../types/venta.types';
 import { documentoCliente, nombreCliente } from '../utils/cliente';
 import { diasTranscurridos, formatearFecha, formatearFechaHora, formatearMonto } from '../utils/formato';
 
 const PLAZO_DEVOLUCION_DIAS = 15;
 
+function disponibleParaDevolver(detalle: DetalleVentaResponse): number {
+  return detalle.cantidad - detalle.cantidadDevuelta;
+}
+
 export function RegistrarDevolucionPage() {
   const [comprobante, setComprobante] = useState('');
-  const [venta, setVenta] = useState<Venta | null>(null);
+  const [venta, setVenta] = useState<VentaResponse | null>(null);
   const [buscando, setBuscando] = useState(false);
   const [errorBusqueda, setErrorBusqueda] = useState('');
 
@@ -28,7 +32,7 @@ export function RegistrarDevolucionPage() {
   const diasRestantes = Math.max(PLAZO_DEVOLUCION_DIAS - dias, 0);
 
   const detalleSeleccionado = useMemo(
-    () => venta?.detalles.find((detalle) => detalle.idVentaDetalle === idVentaDetalle) ?? null,
+    () => venta?.detalles.find((detalle) => detalle.idDetalleVenta === idVentaDetalle) ?? null,
     [venta, idVentaDetalle],
   );
 
@@ -36,7 +40,7 @@ export function RegistrarDevolucionPage() {
   const cantidadValida = Number.isInteger(cantidadNumero)
     && cantidadNumero >= 1
     && detalleSeleccionado !== null
-    && cantidadNumero <= detalleSeleccionado.cantidadDisponibleDevolucion;
+    && cantidadNumero <= disponibleParaDevolver(detalleSeleccionado);
 
   const montoPrevisto = detalleSeleccionado && cantidadValida
     ? Number(detalleSeleccionado.precioUnitario) * cantidadNumero
@@ -68,8 +72,10 @@ export function RegistrarDevolucionPage() {
     setDevolucion(null);
     limpiarFormulario();
     try {
-      const { data } = await api.get<Venta>(`/ventas/comprobante/${encodeURIComponent(numero)}`);
-      setVenta(data);
+      const { data } = await api.get<{ data: VentaResponse[] }>('/ventas', { params: { buscar: numero } });
+      const encontrada = data.data.find((v) => v.numeroVenta === numero) ?? data.data[0] ?? null;
+      if (!encontrada) { setErrorBusqueda('No se encontró ninguna venta con ese comprobante.'); return; }
+      setVenta(encontrada);
     } catch (requestError) {
       setErrorBusqueda(getApiErrorMessage(requestError));
     } finally {
@@ -88,7 +94,7 @@ export function RegistrarDevolucionPage() {
     setError('');
     if (!detalleSeleccionado) { setError('Seleccioná el ítem que se devuelve.'); return; }
     if (!cantidadValida) {
-      setError(`La cantidad debe ser un número entero entre 1 y ${detalleSeleccionado.cantidadDisponibleDevolucion}.`);
+      setError(`La cantidad debe ser un número entero entre 1 y ${disponibleParaDevolver(detalleSeleccionado)}.`);
       return;
     }
     if (!motivo.trim()) { setError('El motivo de la devolución es obligatorio.'); return; }
@@ -96,7 +102,7 @@ export function RegistrarDevolucionPage() {
 
     setGuardando(true);
     const payload: DevolucionPayload = {
-      idVentaDetalle: detalleSeleccionado.idVentaDetalle,
+      idVentaDetalle: detalleSeleccionado.idDetalleVenta,
       cantidad: cantidadNumero,
       motivo: motivo.trim(),
       aptoReingreso,
@@ -158,10 +164,7 @@ export function RegistrarDevolucionPage() {
               <div className="col-sm-4">
                 <div className="border rounded-3 p-3">
                   <div className="small text-muted">Comprobante de venta</div>
-                  <div className="fw-semibold font-monospace">{devolucion.venta.numeroComprobante}</div>
-                  {devolucion.venta.cliente && (
-                    <small className="text-muted d-block">{nombreCliente(devolucion.venta.cliente)}</small>
-                  )}
+                  <div className="fw-semibold font-monospace">{devolucion.venta.numeroVenta}</div>
                 </div>
               </div>
               <div className="col-sm-4">
@@ -258,7 +261,7 @@ export function RegistrarDevolucionPage() {
                       <div className="row g-3 align-items-center">
                         <div className="col-md-4">
                           <div className="small text-muted">Comprobante</div>
-                          <div className="fw-bold font-monospace">{venta.numeroComprobante}</div>
+                          <div className="fw-bold font-monospace">{venta.numeroVenta}</div>
                         </div>
                         <div className="col-md-4">
                           <div className="small text-muted">Fecha de la venta</div>
@@ -321,18 +324,18 @@ export function RegistrarDevolucionPage() {
                           </thead>
                           <tbody>
                             {venta.detalles.map((detalle) => {
-                              const disponible = detalle.cantidadDisponibleDevolucion;
+                              const disponible = disponibleParaDevolver(detalle);
                               const deshabilitado = disponible <= 0 || plazoVencido;
                               return (
-                                <tr key={detalle.idVentaDetalle} className={idVentaDetalle === detalle.idVentaDetalle ? 'table-active' : ''}>
+                                <tr key={detalle.idDetalleVenta} className={idVentaDetalle === detalle.idDetalleVenta ? 'table-active' : ''}>
                                   <td className="text-center">
                                     <input
                                       type="radio"
                                       className="form-check-input"
                                       name="detalle-devolucion"
-                                      checked={idVentaDetalle === detalle.idVentaDetalle}
+                                      checked={idVentaDetalle === detalle.idDetalleVenta}
                                       disabled={deshabilitado}
-                                      onChange={() => seleccionarDetalle(detalle.idVentaDetalle, disponible)}
+                                      onChange={() => seleccionarDetalle(detalle.idDetalleVenta, disponible)}
                                       aria-label={`Seleccionar ${detalle.producto.nombre}`}
                                     />
                                   </td>
@@ -386,7 +389,7 @@ export function RegistrarDevolucionPage() {
                           type="number"
                           className="form-control"
                           min={1}
-                          max={detalleSeleccionado?.cantidadDisponibleDevolucion ?? 1}
+                          max={detalleSeleccionado ? disponibleParaDevolver(detalleSeleccionado) : 1}
                           step={1}
                           value={cantidad}
                           onChange={(e) => setCantidad(e.target.value)}
@@ -394,7 +397,7 @@ export function RegistrarDevolucionPage() {
                         />
                         <small className="text-muted">
                           {detalleSeleccionado
-                            ? `Máximo permitido: ${detalleSeleccionado.cantidadDisponibleDevolucion}`
+                            ? `Máximo permitido: ${disponibleParaDevolver(detalleSeleccionado)}`
                             : 'Seleccioná primero un ítem de la venta.'}
                         </small>
                       </div>

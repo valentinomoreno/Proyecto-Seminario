@@ -10,21 +10,18 @@ import { Categoria } from './entities/categoria.entity';
 import { Deposito } from './entities/deposito.entity';
 import { Estante } from './entities/estante.entity';
 import { Marca } from './entities/marca.entity';
-import { MovimientoStock } from './entities/movimiento-stock.entity';
 import { Producto } from './entities/producto.entity';
 import { Sector } from './entities/sector.entity';
 import { CATEGORIAS_REPOSITORY } from './repositories/interfaces/categorias-repository.interface';
 import { DEPOSITOS_REPOSITORY } from './repositories/interfaces/depositos-repository.interface';
 import { ESTANTES_REPOSITORY } from './repositories/interfaces/estantes-repository.interface';
 import { MARCAS_REPOSITORY } from './repositories/interfaces/marcas-repository.interface';
-import { MOVIMIENTOS_STOCK_REPOSITORY } from './repositories/interfaces/movimientos-stock-repository.interface';
 import { PRODUCTOS_REPOSITORY } from './repositories/interfaces/productos-repository.interface';
 import { SECTORES_REPOSITORY } from './repositories/interfaces/sectores-repository.interface';
 import { TypeOrmCategoriasRepository } from './repositories/typeorm-categorias.repository';
 import { TypeOrmDepositosRepository } from './repositories/typeorm-depositos.repository';
 import { TypeOrmEstantesRepository } from './repositories/typeorm-estantes.repository';
 import { TypeOrmMarcasRepository } from './repositories/typeorm-marcas.repository';
-import { TypeOrmMovimientosStockRepository } from './repositories/typeorm-movimientos-stock.repository';
 import { TypeOrmProductosRepository } from './repositories/typeorm-productos.repository';
 import { TypeOrmSectoresRepository } from './repositories/typeorm-sectores.repository';
 import { CategoriasService } from './services/categorias.service';
@@ -35,7 +32,7 @@ import { ProductosService } from './services/productos.service';
 import { SectoresService } from './services/sectores.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Producto, Categoria, Marca, Deposito, Sector, Estante, MovimientoStock])],
+  imports: [TypeOrmModule.forFeature([Producto, Categoria, Marca, Deposito, Sector, Estante])],
   controllers: [
     ProductosController,
     CategoriasController,
@@ -70,10 +67,6 @@ import { SectoresService } from './services/sectores.service';
       provide: ESTANTES_REPOSITORY,
       useClass: TypeOrmEstantesRepository,
     },
-    {
-      provide: MOVIMIENTOS_STOCK_REPOSITORY,
-      useClass: TypeOrmMovimientosStockRepository,
-    },
     // Services
     ProductosService,
     CategoriasService,
@@ -90,7 +83,6 @@ import { SectoresService } from './services/sectores.service';
     DEPOSITOS_REPOSITORY,
     SECTORES_REPOSITORY,
     ESTANTES_REPOSITORY,
-    MOVIMIENTOS_STOCK_REPOSITORY,
   ],
 })
 export class ProductosModule {}

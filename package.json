@@ -19,6 +19,10 @@
   "devDependencies": {
     "concurrently": "^9.2.1"
   },
+  "overrides": {
+    "multer": "2.3.0",
+    "qs": "6.16.0"
+  },
   "engines": {
     "node": ">=20"
   }

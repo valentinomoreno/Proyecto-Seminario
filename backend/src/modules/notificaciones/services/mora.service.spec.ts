@@ -2,22 +2,22 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { DataSource, EntityManager } from 'typeorm';
 import { TipoCliente } from '../../clientes/entities/cliente.entity';
 import { CuentaCorriente } from '../../cuentas-corrientes/entities/cuenta-corriente.entity';
-import { MovimientoCtaCte } from '../../cuentas-corrientes/entities/movimiento-cta-cte.entity';
-import { TipoMovimientoCtaCte } from '../../cuentas-corrientes/enums/tipo-movimiento-cta-cte.enum';
+import { MovimientoCtaCorriente } from '../../cuentas-corrientes/entities/movimiento-cta-corriente.entity';
+import { TipoMovimientoCtaCorriente } from '../../cuentas-corrientes/enums/tipo-movimiento-cta-corriente.enum';
 import {
   CUENTAS_CORRIENTES_REPOSITORY,
   ICuentasCorrientesRepository,
 } from '../../cuentas-corrientes/repositories/interfaces/cuentas-corrientes-repository.interface';
 import {
-  IMovimientosCtaCteRepository,
-  MOVIMIENTOS_CTA_CTE_REPOSITORY,
-} from '../../cuentas-corrientes/repositories/interfaces/movimientos-cta-cte-repository.interface';
+  IMovimientosCtaCorrienteRepository,
+  MOVIMIENTOS_CTA_CORRIENTE_REPOSITORY,
+} from '../../cuentas-corrientes/repositories/interfaces/movimientos-cta-corriente-repository.interface';
 import { MoraService } from './mora.service';
 
 describe('MoraService (proceso programado de mora del 10%)', () => {
   let service: MoraService;
   let mockCuentasRepo: jest.Mocked<ICuentasCorrientesRepository>;
-  let mockMovimientosRepo: jest.Mocked<IMovimientosCtaCteRepository>;
+  let mockMovimientosRepo: jest.Mocked<IMovimientosCtaCorrienteRepository>;
   let mockCuentasManagerRepo: { findOne: jest.Mock; save: jest.Mock };
   let mockMovimientosManagerRepo: { create: jest.Mock; save: jest.Mock };
   let mockDataSource: { transaction: jest.Mock };
@@ -35,7 +35,6 @@ describe('MoraService (proceso programado de mora del 10%)', () => {
         persona: { nombre: 'Ana', apellido: 'Gómez' },
         empresa: null,
       },
-      movimientos: [],
     }) as unknown as CuentaCorriente;
 
   beforeEach(async () => {
@@ -52,8 +51,6 @@ describe('MoraService (proceso programado de mora del 10%)', () => {
     mockMovimientosRepo = {
       findByCuenta: jest.fn(),
       existeMoraEnMes: jest.fn(),
-      create: jest.fn(),
-      save: jest.fn(),
     };
 
     mockCuentasManagerRepo = {
@@ -62,8 +59,8 @@ describe('MoraService (proceso programado de mora del 10%)', () => {
     };
 
     mockMovimientosManagerRepo = {
-      create: jest.fn((data: Partial<MovimientoCtaCte>) => data),
-      save: jest.fn((movimiento: Partial<MovimientoCtaCte>) => Promise.resolve(movimiento)),
+      create: jest.fn((data: Partial<MovimientoCtaCorriente>) => data),
+      save: jest.fn((movimiento: Partial<MovimientoCtaCorriente>) => Promise.resolve(movimiento)),
     };
 
     const managerFalso = {
@@ -80,7 +77,7 @@ describe('MoraService (proceso programado de mora del 10%)', () => {
       providers: [
         MoraService,
         { provide: CUENTAS_CORRIENTES_REPOSITORY, useValue: mockCuentasRepo },
-        { provide: MOVIMIENTOS_CTA_CTE_REPOSITORY, useValue: mockMovimientosRepo },
+        { provide: MOVIMIENTOS_CTA_CORRIENTE_REPOSITORY, useValue: mockMovimientosRepo },
         { provide: DataSource, useValue: mockDataSource },
       ],
     }).compile();
@@ -117,10 +114,10 @@ describe('MoraService (proceso programado de mora del 10%)', () => {
       lock: { mode: 'pessimistic_write' },
     });
 
-    const movimientoCreado = mockMovimientosManagerRepo.create.mock.calls[0][0] as Partial<MovimientoCtaCte>;
-    expect(movimientoCreado.tipo).toBe(TipoMovimientoCtaCte.MORA);
+    const movimientoCreado = mockMovimientosManagerRepo.create.mock.calls[0][0] as Partial<MovimientoCtaCorriente>;
+    expect(movimientoCreado.tipo).toBe(TipoMovimientoCtaCorriente.MORA);
     expect(movimientoCreado.monto).toBe(10000);
-    expect(movimientoCreado.saldoResultante).toBe(110000);
+    expect(movimientoCreado.saldoPosterior).toBe(110000);
     expect(mockMovimientosManagerRepo.save).toHaveBeenCalledTimes(1);
 
     const cuentaGuardada = mockCuentasManagerRepo.save.mock.calls[0][0] as CuentaCorriente;

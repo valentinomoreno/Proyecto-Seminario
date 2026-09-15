@@ -6,18 +6,22 @@ export class CreateCuentaCorrienteDto {
   @IsInt()
   @Min(1)
   clienteId: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  limiteCredito?: number = 0;
 }
 
-/** Pago manual imputado sobre la cuenta corriente del cliente (exclusivo de administradores). */
 export class RegistrarPagoDto {
-  @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @IsPositive()
   monto: number;
 
   @IsOptional()
   @IsString()
-  @MaxLength(255)
+  @MaxLength(200)
   observaciones?: string;
 }
 

@@ -1,6 +1,6 @@
 import type { ClienteResumen } from '../utils/cliente';
 
-export type TipoMovimientoCtaCte = 'IMPUTACION_VENTA' | 'PAGO' | 'MORA' | 'NOTA_CREDITO';
+export type TipoMovimientoCtaCte = 'IMPUTACION_VENTA' | 'COBRO_CUENTA' | 'AJUSTE' | 'NOTA_CREDITO' | 'MORA';
 
 export type EstadoCuentaCorriente = 'ACTIVA' | 'INACTIVA';
 
@@ -11,7 +11,7 @@ export interface MovimientoCtaCte {
   idMovimientoCtaCte: number;
   tipo: TipoMovimientoCtaCte;
   monto: number;
-  saldoResultante: number;
+  saldoPosterior: number;
   fecha: string;
   observaciones?: string | null;
 }

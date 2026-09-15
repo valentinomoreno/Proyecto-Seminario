@@ -32,7 +32,7 @@ export interface Producto {
   idProducto: number;
   sku: string;
   nombre: string;
-  descripcion: string;
+  descripcion: string | null;
   stock: number;
   precioUnitario: number;
   imagenUrl?: string | null;
@@ -52,11 +52,23 @@ export interface PaginatedResponse<T> {
 
 export interface ProductoPayload {
   nombre: string;
-  descripcion: string;
+  descripcion?: string | null;
   stock: number;
   precioUnitario: number;
   imagenUrl?: string | null;
   categoriaId: number;
   marcaId: number;
   estanteId: number;
+}
+
+export interface ProductoCatalogo {
+  idProducto: number;
+  sku: string;
+  nombre: string;
+  descripcion: string | null;
+  precioUnitario: number;
+  stock: number;
+  imagenUrl?: string | null;
+  categoria?: { idCategoria: number; nombre: string };
+  marca?: { idMarca: number; nombre: string };
 }

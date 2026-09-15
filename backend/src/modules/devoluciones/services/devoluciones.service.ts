@@ -3,13 +3,14 @@ import { DataSource, EntityManager } from 'typeorm';
 import { throwFriendlyDatabaseError } from '../../../common/database/database-error.util';
 import { UsuarioAutenticado } from '../../../common/interfaces/usuario-autenticado.interface';
 import { CuentaCorriente } from '../../cuentas-corrientes/entities/cuenta-corriente.entity';
-import { MovimientoCtaCte } from '../../cuentas-corrientes/entities/movimiento-cta-cte.entity';
-import { TipoMovimientoCtaCte } from '../../cuentas-corrientes/enums/tipo-movimiento-cta-cte.enum';
-import { MovimientoStock } from '../../productos/entities/movimiento-stock.entity';
+import { MovimientoCtaCorriente } from '../../cuentas-corrientes/entities/movimiento-cta-corriente.entity';
+import { TipoMovimientoCtaCorriente } from '../../cuentas-corrientes/enums/tipo-movimiento-cta-corriente.enum';
 import { Producto } from '../../productos/entities/producto.entity';
-import { TipoMovimientoStock } from '../../productos/enums/tipo-movimiento-stock.enum';
 import { Empleado } from '../../usuarios/entities/empleado.entity';
-import { VentaDetalle } from '../../ventas/entities/venta-detalle.entity';
+import { Usuario } from '../../usuarios/entities/usuario.entity';
+import { DetalleVenta } from '../../ventas/entities/detalle-venta.entity';
+import { MovimientoStock } from '../../ventas/entities/movimiento-stock.entity';
+import { TipoMovimientoStock } from '../../ventas/enums/tipo-movimiento-stock.enum';
 import { CreateDevolucionDto, QueryDevolucionesDto } from '../dto/devolucion.dto';
 import { Devolucion } from '../entities/devolucion.entity';
 import { NotaCredito } from '../entities/nota-credito.entity';
@@ -56,7 +57,7 @@ export class DevolucionesService {
 
     try {
       const idDevolucion = await this.dataSource.transaction(async (manager) =>
-        this.registrarDevolucion(manager, dto, usuario.idEmpleado as number),
+        this.registrarDevolucion(manager, dto, usuario.idEmpleado as number, usuario.idUsuario),
       );
       return this.findOne(idDevolucion);
     } catch (error) {
@@ -68,12 +69,13 @@ export class DevolucionesService {
     manager: EntityManager,
     dto: CreateDevolucionDto,
     idEmpleado: number,
+    idUsuario: number,
   ): Promise<number> {
     const empleado = await manager.getRepository(Empleado).findOneBy({ idEmpleado });
     if (!empleado) throw new NotFoundException('Empleado no encontrado.');
 
-    const detalle = await manager.getRepository(VentaDetalle).findOne({
-      where: { idVentaDetalle: dto.idVentaDetalle },
+    const detalle = await manager.getRepository(DetalleVenta).findOne({
+      where: { idDetalleVenta: dto.idVentaDetalle },
       relations: { venta: { cliente: true }, producto: true },
     });
     if (!detalle) throw new NotFoundException('El ítem de venta indicado no existe.');
@@ -92,7 +94,7 @@ export class DevolucionesService {
 
     const devolucion = await manager.getRepository(Devolucion).save(
       manager.getRepository(Devolucion).create({
-        ventaDetalle: detalle,
+        detalleVenta: detalle,
         cantidadDevuelta: dto.cantidad,
         motivo: dto.motivo.trim(),
         montoDevuelto,
@@ -103,14 +105,14 @@ export class DevolucionesService {
     );
 
     detalle.cantidadDevuelta += dto.cantidad;
-    await manager.getRepository(VentaDetalle).save(detalle);
+    await manager.getRepository(DetalleVenta).save(detalle);
 
     if (dto.aptoReingreso) {
-      await this.reingresarStock(manager, detalle.producto.idProducto, dto.cantidad, devolucion, empleado);
+      await this.reingresarStock(manager, detalle.producto.idProducto, dto.cantidad, devolucion, idUsuario);
     }
 
     await this.emitirNotaCredito(manager, devolucion, montoDevuelto);
-    await this.acreditarEnCuentaCorriente(manager, detalle.venta.cliente.idCliente, devolucion, montoDevuelto, empleado);
+    await this.acreditarEnCuentaCorriente(manager, detalle.venta.cliente.idCliente, devolucion, montoDevuelto);
 
     return devolucion.idDevolucion;
   }
@@ -129,7 +131,7 @@ export class DevolucionesService {
     idProducto: number,
     cantidad: number,
     devolucion: Devolucion,
-    empleado: Empleado,
+    idUsuario: number,
   ): Promise<void> {
     const producto = await manager.getRepository(Producto).findOne({
       where: { idProducto },
@@ -137,18 +139,20 @@ export class DevolucionesService {
     });
     if (!producto) throw new NotFoundException('Producto no encontrado.');
 
+    const stockAnterior = producto.stock;
     producto.stock += cantidad;
     await manager.getRepository(Producto).save(producto);
 
     await manager.getRepository(MovimientoStock).save(
       manager.getRepository(MovimientoStock).create({
         producto,
-        tipo: TipoMovimientoStock.DEVOLUCION,
+        usuario: { idUsuario } as Usuario,
+        tipo: TipoMovimientoStock.ENTRADA_DEVOLUCION,
         cantidad,
-        stockResultante: producto.stock,
+        stockAnterior,
+        stockPosterior: producto.stock,
         idDevolucion: devolucion.idDevolucion,
-        empleado,
-        observaciones: `Devolución ${devolucion.idDevolucion} – reingreso por producto apto para reventa`,
+        motivo: `Devolución ${devolucion.idDevolucion} – reingreso por producto apto para reventa`,
       }),
     );
   }
@@ -172,12 +176,16 @@ export class DevolucionesService {
     );
   }
 
+  /**
+   * Nota de crédito → acredita al cliente, es decir reduce el saldo. El `monto`
+   * del movimiento se guarda siempre positivo (CHECK de la tabla); el signo de
+   * la operación lo determina el `tipo`, no el valor almacenado.
+   */
   private async acreditarEnCuentaCorriente(
     manager: EntityManager,
     idCliente: number,
     devolucion: Devolucion,
     monto: number,
-    empleado: Empleado,
   ): Promise<void> {
     const cuenta = await manager
       .createQueryBuilder(CuentaCorriente, 'cuenta')
@@ -186,24 +194,23 @@ export class DevolucionesService {
       .getOne();
     if (!cuenta) throw new NotFoundException('El cliente no tiene cuenta corriente asociada.');
 
-    const saldoResultante = Number((cuenta.saldo - monto).toFixed(2));
-    await manager.getRepository(MovimientoCtaCte).save(
-      manager.getRepository(MovimientoCtaCte).create({
+    const saldoPosterior = Number(Math.max(0, cuenta.saldo - monto).toFixed(2));
+    await manager.getRepository(MovimientoCtaCorriente).save(
+      manager.getRepository(MovimientoCtaCorriente).create({
         cuentaCorriente: cuenta,
-        tipo: TipoMovimientoCtaCte.NOTA_CREDITO,
-        monto: -monto,
-        saldoResultante,
-        empleado,
-        observaciones: `Nota de crédito por devolución ${devolucion.idDevolucion}`,
+        tipo: TipoMovimientoCtaCorriente.NOTA_CREDITO,
+        monto,
+        saldoPosterior,
+        descripcion: `Nota de crédito por devolución ${devolucion.idDevolucion}`,
       }),
     );
 
-    cuenta.saldo = saldoResultante;
+    cuenta.saldo = saldoPosterior;
     await manager.getRepository(CuentaCorriente).save(cuenta);
   }
 
   private toResponse(devolucion: Devolucion) {
-    const detalle = devolucion.ventaDetalle;
+    const detalle = devolucion.detalleVenta;
     return {
       idDevolucion: devolucion.idDevolucion,
       fecha: devolucion.fecha,
@@ -214,7 +221,7 @@ export class DevolucionesService {
       observaciones: devolucion.observaciones,
       venta: detalle?.venta && {
         idVenta: detalle.venta.idVenta,
-        numeroComprobante: detalle.venta.numeroComprobante,
+        numeroVenta: detalle.venta.numeroVenta,
         fecha: detalle.venta.fecha,
       },
       producto: detalle?.producto && {

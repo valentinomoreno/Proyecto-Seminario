@@ -3,25 +3,24 @@ import { Test } from '@nestjs/testing';
 import { DataSource, EntityManager } from 'typeorm';
 import { Cliente, TipoCliente } from '../../clientes/entities/cliente.entity';
 import { CLIENTES_REPOSITORY, IClientesRepository } from '../../clientes/repositories/interfaces/clientes-repository.interface';
-import { Empleado } from '../../usuarios/entities/empleado.entity';
 import { CuentaCorriente } from '../entities/cuenta-corriente.entity';
-import { MovimientoCtaCte } from '../entities/movimiento-cta-cte.entity';
-import { TipoMovimientoCtaCte } from '../enums/tipo-movimiento-cta-cte.enum';
+import { MovimientoCtaCorriente } from '../entities/movimiento-cta-corriente.entity';
+import { TipoMovimientoCtaCorriente } from '../enums/tipo-movimiento-cta-corriente.enum';
 import {
   CUENTAS_CORRIENTES_REPOSITORY,
   ICuentasCorrientesRepository,
 } from '../repositories/interfaces/cuentas-corrientes-repository.interface';
 import {
-  IMovimientosCtaCteRepository,
-  MOVIMIENTOS_CTA_CTE_REPOSITORY,
-} from '../repositories/interfaces/movimientos-cta-cte-repository.interface';
+  IMovimientosCtaCorrienteRepository,
+  MOVIMIENTOS_CTA_CORRIENTE_REPOSITORY,
+} from '../repositories/interfaces/movimientos-cta-corriente-repository.interface';
 import { CuentasCorrientesService } from './cuentas-corrientes.service';
 
 describe('CuentasCorrientesService', () => {
   let service: CuentasCorrientesService;
   let cuentasRepository: jest.Mocked<ICuentasCorrientesRepository>;
   let clientesRepository: jest.Mocked<IClientesRepository>;
-  let movimientosRepository: jest.Mocked<IMovimientosCtaCteRepository>;
+  let movimientosRepository: jest.Mocked<IMovimientosCtaCorrienteRepository>;
   let cuentasManagerRepository: { findOne: jest.Mock; save: jest.Mock };
   let movimientosManagerRepository: { create: jest.Mock; save: jest.Mock };
   let dataSource: { transaction: jest.Mock };
@@ -47,25 +46,21 @@ describe('CuentasCorrientesService', () => {
     movimientosRepository = {
       findByCuenta: jest.fn(),
       existeMoraEnMes: jest.fn(),
-      create: jest.fn(),
-      save: jest.fn(),
     };
     cuentasManagerRepository = {
       findOne: jest.fn(),
       save: jest.fn((cuenta: CuentaCorriente) => Promise.resolve(cuenta)),
     };
     movimientosManagerRepository = {
-      create: jest.fn((data: Partial<MovimientoCtaCte>) => data),
-      save: jest.fn((movimiento: Partial<MovimientoCtaCte>) =>
+      create: jest.fn((data: Partial<MovimientoCtaCorriente>) => data),
+      save: jest.fn((movimiento: Partial<MovimientoCtaCorriente>) =>
         Promise.resolve({ idMovimientoCtaCte: 55, fecha: new Date(), ...movimiento }),
       ),
     };
     const managerFalso = {
-      getRepository: jest.fn((entidad: unknown) => {
-        if (entidad === CuentaCorriente) return cuentasManagerRepository;
-        if (entidad === Empleado) return { create: (data: Partial<Empleado>) => data };
-        return movimientosManagerRepository;
-      }),
+      getRepository: jest.fn((entidad: unknown) =>
+        entidad === CuentaCorriente ? cuentasManagerRepository : movimientosManagerRepository,
+      ),
     } as unknown as EntityManager;
     dataSource = {
       transaction: jest.fn((cb: (manager: EntityManager) => Promise<unknown>) => cb(managerFalso)),
@@ -86,7 +81,7 @@ describe('CuentasCorrientesService', () => {
         CuentasCorrientesService,
         { provide: CUENTAS_CORRIENTES_REPOSITORY, useValue: cuentasRepository },
         { provide: CLIENTES_REPOSITORY, useValue: clientesRepository },
-        { provide: MOVIMIENTOS_CTA_CTE_REPOSITORY, useValue: movimientosRepository },
+        { provide: MOVIMIENTOS_CTA_CORRIENTE_REPOSITORY, useValue: movimientosRepository },
         { provide: DataSource, useValue: dataSource },
       ],
     }).compile();
@@ -161,14 +156,14 @@ describe('CuentasCorrientesService', () => {
       cuentasRepository.findByClienteId.mockResolvedValue(cuenta);
       cuentasRepository.findById.mockResolvedValue(cuenta);
       movimientosRepository.findByCuenta.mockResolvedValue([
-        Object.assign(new MovimientoCtaCte(), {
+        Object.assign(new MovimientoCtaCorriente(), {
           idMovimientoCtaCte: 9,
-          tipo: TipoMovimientoCtaCte.IMPUTACION_VENTA,
+          tipo: TipoMovimientoCtaCorriente.IMPUTACION_VENTA,
           monto: 1500,
-          saldoResultante: 1500,
+          saldoPosterior: 1500,
           fecha: new Date(),
-          idVenta: 4,
-          observaciones: null,
+          venta: { idVenta: 4 },
+          descripcion: null,
         }),
       ]);
 
@@ -177,10 +172,10 @@ describe('CuentasCorrientesService', () => {
       expect(movimientosRepository.findByCuenta).toHaveBeenCalledWith(3);
       expect(result.cuenta).toMatchObject({ idCuentaCorriente: 3, saldo: 1500 });
       expect(result.movimientos).toHaveLength(1);
-      expect(result.movimientos[0]).toMatchObject({ tipo: TipoMovimientoCtaCte.IMPUTACION_VENTA, monto: 1500 });
+      expect(result.movimientos[0]).toMatchObject({ tipo: TipoMovimientoCtaCorriente.IMPUTACION_VENTA, monto: 1500 });
     });
 
-    it('registra el pago como movimiento negativo y descuenta el saldo', async () => {
+    it('registra el pago como movimiento positivo (COBRO_CUENTA) y descuenta el saldo', async () => {
       const cuenta = cuentaActiva(1000);
       cuentasRepository.findByClienteId.mockResolvedValue(cuenta);
       cuentasRepository.findById.mockResolvedValue(cuenta);
@@ -193,12 +188,12 @@ describe('CuentasCorrientesService', () => {
         where: { idCuentaCorriente: 3 },
         lock: { mode: 'pessimistic_write' },
       });
-      const movimientoCreado = movimientosManagerRepository.create.mock.calls[0][0] as Partial<MovimientoCtaCte>;
-      expect(movimientoCreado.tipo).toBe(TipoMovimientoCtaCte.PAGO);
-      expect(movimientoCreado.monto).toBe(-400);
-      expect(movimientoCreado.saldoResultante).toBe(600);
+      const movimientoCreado = movimientosManagerRepository.create.mock.calls[0][0] as Partial<MovimientoCtaCorriente>;
+      expect(movimientoCreado.tipo).toBe(TipoMovimientoCtaCorriente.COBRO_CUENTA);
+      expect(movimientoCreado.monto).toBe(400);
+      expect(movimientoCreado.saldoPosterior).toBe(600);
       expect(cuenta.saldo).toBe(600);
-      expect(result.movimiento).toMatchObject({ monto: -400, saldoResultante: 600 });
+      expect(result.movimiento).toMatchObject({ monto: 400, saldoPosterior: 600 });
     });
 
     it('rechaza un pago mayor al saldo pendiente', async () => {

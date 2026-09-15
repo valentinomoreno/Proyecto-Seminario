@@ -1,7 +1,7 @@
 import { Check, Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, OneToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { decimalTransformer } from '../../../common/database/decimal.transformer';
+import { DetalleVenta } from '../../ventas/entities/detalle-venta.entity';
 import { Empleado } from '../../usuarios/entities/empleado.entity';
-import { VentaDetalle } from '../../ventas/entities/venta-detalle.entity';
 import { NotaCredito } from './nota-credito.entity';
 
 /**
@@ -15,9 +15,9 @@ export class Devolucion {
   @PrimaryGeneratedColumn({ name: 'id_devolucion' })
   idDevolucion: number;
 
-  @ManyToOne(() => VentaDetalle, { nullable: false })
+  @ManyToOne(() => DetalleVenta, { nullable: false })
   @JoinColumn({ name: 'id_venta_detalle' })
-  ventaDetalle: VentaDetalle;
+  detalleVenta: DetalleVenta;
 
   @Column({ name: 'cantidad_devuelta', type: 'integer' })
   cantidadDevuelta: number;

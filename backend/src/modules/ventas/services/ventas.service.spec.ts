@@ -1,169 +1,115 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
-import { DataSource, EntityManager } from 'typeorm';
-import { NombreRol } from '../../../common/enums/nombre-rol.enum';
-import { UsuarioAutenticado } from '../../../common/interfaces/usuario-autenticado.interface';
-import { Cliente } from '../../clientes/entities/cliente.entity';
-import { CuentaCorriente } from '../../cuentas-corrientes/entities/cuenta-corriente.entity';
-import { MovimientoCtaCte } from '../../cuentas-corrientes/entities/movimiento-cta-cte.entity';
-import { TipoMovimientoCtaCte } from '../../cuentas-corrientes/enums/tipo-movimiento-cta-cte.enum';
-import { MovimientoStock } from '../../productos/entities/movimiento-stock.entity';
-import { Producto } from '../../productos/entities/producto.entity';
-import { TipoMovimientoStock } from '../../productos/enums/tipo-movimiento-stock.enum';
-import { Empleado } from '../../usuarios/entities/empleado.entity';
-import { Venta } from '../entities/venta.entity';
-import { VentaDetalle } from '../entities/venta-detalle.entity';
-import { IVentasRepository, VENTAS_REPOSITORY } from '../repositories/interfaces/ventas-repository.interface';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import {
+  CLIENTES_REPOSITORY,
+  IClientesRepository,
+} from '../../clientes/repositories/interfaces/clientes-repository.interface';
+import { MetodoCobro } from '../enums/metodo-cobro.enum';
+import { ModalidadPago } from '../enums/modalidad-pago.enum';
+import {
+  IVentasRepository,
+  VENTAS_REPOSITORY,
+} from '../repositories/interfaces/ventas-repository.interface';
 import { VentasService } from './ventas.service';
-
-type RepoMock = {
-  find: jest.Mock;
-  findOne: jest.Mock;
-  findOneBy: jest.Mock;
-  create: jest.Mock;
-  save: jest.Mock;
-};
-
-function crearRepoMock(): RepoMock {
-  return {
-    find: jest.fn(),
-    findOne: jest.fn(),
-    findOneBy: jest.fn(),
-    create: jest.fn((data: unknown) => data),
-    save: jest.fn((entity: unknown) => Promise.resolve(entity)),
-  };
-}
-
-const ADMIN: UsuarioAutenticado = {
-  idUsuario: 1,
-  nombre: 'admin',
-  rol: NombreRol.ADMINISTRADOR,
-  idEmpleado: 7,
-};
 
 describe('VentasService', () => {
   let service: VentasService;
-  let repos: Map<unknown, RepoMock>;
-  let manager: EntityManager;
-  let queryBuilder: { setLock: jest.Mock; where: jest.Mock; getOne: jest.Mock };
-  let mockVentasRepo: jest.Mocked<IVentasRepository>;
+  let ventasRepository: jest.Mocked<IVentasRepository>;
+  let clientesRepository: jest.Mocked<IClientesRepository>;
+
+  const clienteConCuenta = {
+    idCliente: 1,
+    cuentaCorriente: { activa: true, saldo: 0, limiteCredito: 500000 },
+  };
+  const clienteSinCuenta = { idCliente: 2, cuentaCorriente: null };
 
   beforeEach(async () => {
-    repos = new Map<unknown, RepoMock>([
-      [Empleado, crearRepoMock()],
-      [Cliente, crearRepoMock()],
-      [Producto, crearRepoMock()],
-      [Venta, crearRepoMock()],
-      [VentaDetalle, crearRepoMock()],
-      [MovimientoStock, crearRepoMock()],
-      [CuentaCorriente, crearRepoMock()],
-      [MovimientoCtaCte, crearRepoMock()],
-    ]);
-
-    queryBuilder = {
-      setLock: jest.fn().mockReturnThis(),
-      where: jest.fn().mockReturnThis(),
-      getOne: jest.fn(),
-    };
-
-    manager = {
-      getRepository: jest.fn((entity: unknown) => repos.get(entity)),
-      createQueryBuilder: jest.fn(() => queryBuilder),
-      query: jest.fn().mockResolvedValue([{ nextval: '3' }]),
-    } as unknown as EntityManager;
-
-    mockVentasRepo = {
+    ventasRepository = {
       findAndCount: jest.fn(),
       findById: jest.fn(),
-      findByNumeroComprobante: jest.fn(),
+      registrarVentaTransaccional: jest.fn(),
+    };
+    clientesRepository = {
+      findAndCount: jest.fn(),
+      findById: jest.fn(),
+      existsPersonaByDni: jest.fn(),
+      existsPersonaByCuil: jest.fn(),
+      existsEmpresaByCuit: jest.fn(),
+      createPersona: jest.fn(),
+      createEmpresa: jest.fn(),
+      save: jest.fn(),
+      softRemove: jest.fn(),
     };
 
-    const dataSource = {
-      transaction: jest.fn((work: (m: EntityManager) => Promise<unknown>) => work(manager)),
-    } as unknown as DataSource;
-
-    const module: TestingModule = await Test.createTestingModule({
+    const module = await Test.createTestingModule({
       providers: [
         VentasService,
-        { provide: VENTAS_REPOSITORY, useValue: mockVentasRepo },
-        { provide: DataSource, useValue: dataSource },
+        { provide: VENTAS_REPOSITORY, useValue: ventasRepository },
+        { provide: CLIENTES_REPOSITORY, useValue: clientesRepository },
       ],
     }).compile();
-
-    service = module.get<VentasService>(VentasService);
+    service = module.get(VentasService);
   });
 
-  function prepararEscenarioFeliz(stockDisponible: number) {
-    repos.get(Empleado)!.findOneBy.mockResolvedValue({ idEmpleado: 7, legajo: 'ADMIN-001' });
-    repos.get(Cliente)!.findOneBy.mockResolvedValue({ idCliente: 4, activo: true });
-    repos.get(Producto)!.findOne.mockResolvedValue({
-      idProducto: 10,
-      nombre: 'Filtro de aceite',
-      stock: stockDisponible,
-      precioUnitario: 1000,
+  it('registra una venta de contado con el usuario autenticado', async () => {
+    clientesRepository.findById.mockResolvedValue(clienteConCuenta as never);
+    ventasRepository.registrarVentaTransaccional.mockResolvedValue({ idVenta: 10 } as never);
+
+    await service.registrarVenta(7, {
+      idCliente: 1,
+      modalidadPago: ModalidadPago.CONTADO,
+      metodoCobro: MetodoCobro.EFECTIVO,
+      items: [{ idProducto: 3, cantidad: 2 }],
     });
-    repos.get(Venta)!.save.mockImplementation((venta: Record<string, unknown>) =>
-      Promise.resolve({ ...venta, idVenta: 55 }),
-    );
-    queryBuilder.getOne.mockResolvedValue({ idCuentaCorriente: 2, saldo: 500, fechaUltimoMovimiento: null });
-  }
 
-  it('rechaza registrar una venta si el usuario no tiene empleado asociado', async () => {
-    const sinEmpleado: UsuarioAutenticado = { ...ADMIN, idEmpleado: null };
-
-    await expect(service.create({ idCliente: 4, items: [{ idProducto: 10, cantidad: 1 }] }, sinEmpleado))
-      .rejects.toBeInstanceOf(ForbiddenException);
+    expect(ventasRepository.registrarVentaTransaccional).toHaveBeenCalledWith({
+      idUsuario: 7,
+      idCliente: 1,
+      modalidadPago: ModalidadPago.CONTADO,
+      metodoCobro: MetodoCobro.EFECTIVO,
+      referenciaPago: undefined,
+      items: [{ idProducto: 3, cantidad: 2 }],
+    });
   });
 
-  it('rechaza la venta cuando el stock es insuficiente', async () => {
-    prepararEscenarioFeliz(2);
-
-    await expect(service.create({ idCliente: 4, items: [{ idProducto: 10, cantidad: 5 }] }, ADMIN))
-      .rejects.toBeInstanceOf(BadRequestException);
-    expect(repos.get(Venta)!.save).not.toHaveBeenCalled();
+  it('rechaza contado sin método de cobro', async () => {
+    clientesRepository.findById.mockResolvedValue(clienteConCuenta as never);
+    await expect(service.registrarVenta(1, {
+      idCliente: 1,
+      modalidadPago: ModalidadPago.CONTADO,
+      items: [{ idProducto: 1, cantidad: 1 }],
+    })).rejects.toThrow(BadRequestException);
   });
 
-  it('suma las cantidades repetidas del mismo producto antes de validar el stock', async () => {
-    prepararEscenarioFeliz(5);
-
-    await expect(
-      service.create(
-        { idCliente: 4, items: [{ idProducto: 10, cantidad: 3 }, { idProducto: 10, cantidad: 3 }] },
-        ADMIN,
-      ),
-    ).rejects.toBeInstanceOf(BadRequestException);
+  it('rechaza cuenta corriente inactiva o inexistente', async () => {
+    clientesRepository.findById.mockResolvedValue(clienteSinCuenta as never);
+    await expect(service.registrarVenta(1, {
+      idCliente: 2,
+      modalidadPago: ModalidadPago.CUENTA_CORRIENTE,
+      items: [{ idProducto: 1, cantidad: 1 }],
+    })).rejects.toThrow('no tiene una cuenta corriente activa');
   });
 
-  it('descuenta stock, registra el movimiento de kardex e imputa la cuenta corriente', async () => {
-    prepararEscenarioFeliz(10);
+  it('rechaza productos duplicados para impedir validar stock por separado', async () => {
+    clientesRepository.findById.mockResolvedValue(clienteConCuenta as never);
+    await expect(service.registrarVenta(1, {
+      idCliente: 1,
+      modalidadPago: ModalidadPago.CONTADO,
+      metodoCobro: MetodoCobro.EFECTIVO,
+      items: [
+        { idProducto: 1, cantidad: 3 },
+        { idProducto: 1, cantidad: 4 },
+      ],
+    })).rejects.toThrow('Cada producto debe aparecer una sola vez');
+  });
 
-    const resultado = await service.create({ idCliente: 4, items: [{ idProducto: 10, cantidad: 3 }] }, ADMIN);
-
-    expect(resultado.numeroComprobante).toBe('V-00003');
-    expect(resultado.total).toBe(3000);
-
-    const productoGuardado = repos.get(Producto)!.save.mock.calls[0][0] as { stock: number };
-    expect(productoGuardado.stock).toBe(7);
-
-    const movimientoStock = repos.get(MovimientoStock)!.create.mock.calls[0][0] as {
-      tipo: TipoMovimientoStock;
-      cantidad: number;
-      stockResultante: number;
-    };
-    expect(movimientoStock.tipo).toBe(TipoMovimientoStock.VENTA);
-    expect(movimientoStock.cantidad).toBe(3);
-    expect(movimientoStock.stockResultante).toBe(7);
-
-    const movimientoCtaCte = repos.get(MovimientoCtaCte)!.create.mock.calls[0][0] as {
-      tipo: TipoMovimientoCtaCte;
-      monto: number;
-      saldoResultante: number;
-    };
-    expect(movimientoCtaCte.tipo).toBe(TipoMovimientoCtaCte.IMPUTACION_VENTA);
-    expect(movimientoCtaCte.monto).toBe(3000);
-    expect(movimientoCtaCte.saldoResultante).toBe(3500);
-
-    const cuentaGuardada = repos.get(CuentaCorriente)!.save.mock.calls[0][0] as { saldo: number };
-    expect(cuentaGuardada.saldo).toBe(3500);
+  it('rechaza un cliente inexistente', async () => {
+    clientesRepository.findById.mockResolvedValue(null);
+    await expect(service.registrarVenta(1, {
+      idCliente: 999,
+      modalidadPago: ModalidadPago.CONTADO,
+      metodoCobro: MetodoCobro.EFECTIVO,
+      items: [{ idProducto: 1, cantidad: 1 }],
+    })).rejects.toThrow(NotFoundException);
   });
 });

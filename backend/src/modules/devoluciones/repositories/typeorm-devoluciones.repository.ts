@@ -6,7 +6,7 @@ import { Devolucion } from '../entities/devolucion.entity';
 import { IDevolucionesRepository } from './interfaces/devoluciones-repository.interface';
 
 const RELACIONES_COMPLETAS = {
-  ventaDetalle: { venta: { cliente: true }, producto: true },
+  detalleVenta: { venta: { cliente: true }, producto: true },
   empleadoAutoriza: { persona: true },
   notaCredito: true,
 } as const;

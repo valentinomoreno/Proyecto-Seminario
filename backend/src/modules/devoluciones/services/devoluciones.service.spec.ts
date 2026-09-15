@@ -4,13 +4,13 @@ import { DataSource, EntityManager } from 'typeorm';
 import { NombreRol } from '../../../common/enums/nombre-rol.enum';
 import { UsuarioAutenticado } from '../../../common/interfaces/usuario-autenticado.interface';
 import { CuentaCorriente } from '../../cuentas-corrientes/entities/cuenta-corriente.entity';
-import { MovimientoCtaCte } from '../../cuentas-corrientes/entities/movimiento-cta-cte.entity';
-import { TipoMovimientoCtaCte } from '../../cuentas-corrientes/enums/tipo-movimiento-cta-cte.enum';
-import { MovimientoStock } from '../../productos/entities/movimiento-stock.entity';
+import { MovimientoCtaCorriente } from '../../cuentas-corrientes/entities/movimiento-cta-corriente.entity';
+import { TipoMovimientoCtaCorriente } from '../../cuentas-corrientes/enums/tipo-movimiento-cta-corriente.enum';
 import { Producto } from '../../productos/entities/producto.entity';
-import { TipoMovimientoStock } from '../../productos/enums/tipo-movimiento-stock.enum';
 import { Empleado } from '../../usuarios/entities/empleado.entity';
-import { VentaDetalle } from '../../ventas/entities/venta-detalle.entity';
+import { DetalleVenta } from '../../ventas/entities/detalle-venta.entity';
+import { MovimientoStock } from '../../ventas/entities/movimiento-stock.entity';
+import { TipoMovimientoStock } from '../../ventas/enums/tipo-movimiento-stock.enum';
 import { Devolucion } from '../entities/devolucion.entity';
 import { NotaCredito } from '../entities/nota-credito.entity';
 import { DEVOLUCIONES_REPOSITORY, IDevolucionesRepository } from '../repositories/interfaces/devoluciones-repository.interface';
@@ -54,13 +54,13 @@ describe('DevolucionesService', () => {
   beforeEach(async () => {
     repos = new Map<unknown, RepoMock>([
       [Empleado, crearRepoMock()],
-      [VentaDetalle, crearRepoMock()],
+      [DetalleVenta, crearRepoMock()],
       [Producto, crearRepoMock()],
       [MovimientoStock, crearRepoMock()],
       [Devolucion, crearRepoMock()],
       [NotaCredito, crearRepoMock()],
       [CuentaCorriente, crearRepoMock()],
-      [MovimientoCtaCte, crearRepoMock()],
+      [MovimientoCtaCorriente, crearRepoMock()],
     ]);
 
     repos.get(Devolucion)!.save.mockImplementation((entity: Record<string, unknown>) =>
@@ -81,7 +81,7 @@ describe('DevolucionesService', () => {
 
     mockDevolucionesRepo = {
       findAndCount: jest.fn(),
-      findById: jest.fn().mockResolvedValue({ idDevolucion: 99, ventaDetalle: null }),
+      findById: jest.fn().mockResolvedValue({ idDevolucion: 99, detalleVenta: null }),
     };
 
     const dataSource = {
@@ -101,16 +101,16 @@ describe('DevolucionesService', () => {
 
   function prepararVenta(opciones: { diasDesdeVenta: number; cantidad?: number; cantidadDevuelta?: number }) {
     repos.get(Empleado)!.findOneBy.mockResolvedValue({ idEmpleado: 9, legajo: 'VENTA-001' });
-    repos.get(VentaDetalle)!.findOne.mockResolvedValue({
-      idVentaDetalle: 1,
+    repos.get(DetalleVenta)!.findOne.mockResolvedValue({
+      idDetalleVenta: 1,
       cantidad: opciones.cantidad ?? 5,
       cantidadDevuelta: opciones.cantidadDevuelta ?? 0,
       precioUnitario: 1000,
       producto: { idProducto: 10, nombre: 'Pastilla de freno' },
-      venta: { idVenta: 3, numeroComprobante: 'V-00003', fecha: hace(opciones.diasDesdeVenta), cliente: { idCliente: 4 } },
+      venta: { idVenta: 3, numeroVenta: 'VTA-00000003', fecha: hace(opciones.diasDesdeVenta), cliente: { idCliente: 4 } },
     });
     repos.get(Producto)!.findOne.mockResolvedValue({ idProducto: 10, nombre: 'Pastilla de freno', stock: 12 });
-    queryBuilder.getOne.mockResolvedValue({ idCuentaCorriente: 2, saldo: 5000, fechaUltimoMovimiento: null });
+    queryBuilder.getOne.mockResolvedValue({ idCuentaCorriente: 2, saldo: 5000 });
   }
 
   it('rechaza la devolución si el usuario no tiene empleado asociado (RNF-05)', async () => {
@@ -150,12 +150,14 @@ describe('DevolucionesService', () => {
     const movimiento = repos.get(MovimientoStock)!.create.mock.calls[0][0] as {
       tipo: TipoMovimientoStock;
       cantidad: number;
-      stockResultante: number;
+      stockAnterior: number;
+      stockPosterior: number;
       idDevolucion: number;
     };
-    expect(movimiento.tipo).toBe(TipoMovimientoStock.DEVOLUCION);
+    expect(movimiento.tipo).toBe(TipoMovimientoStock.ENTRADA_DEVOLUCION);
     expect(movimiento.cantidad).toBe(2);
-    expect(movimiento.stockResultante).toBe(14);
+    expect(movimiento.stockAnterior).toBe(12);
+    expect(movimiento.stockPosterior).toBe(14);
     expect(movimiento.idDevolucion).toBe(99);
   });
 
@@ -168,7 +170,7 @@ describe('DevolucionesService', () => {
     expect(repos.get(MovimientoStock)!.save).not.toHaveBeenCalled();
   });
 
-  it('emite la nota de crédito y acredita el saldo en la cuenta corriente', async () => {
+  it('emite la nota de crédito y acredita el saldo en la cuenta corriente (monto siempre positivo)', async () => {
     prepararVenta({ diasDesdeVenta: 1 });
 
     await service.create({ ...DTO_BASE, cantidad: 2 }, VENDEDOR);
@@ -177,14 +179,14 @@ describe('DevolucionesService', () => {
     expect(notaCredito.numero).toBe('NC-00007');
     expect(notaCredito.monto).toBe(2000);
 
-    const movimiento = repos.get(MovimientoCtaCte)!.create.mock.calls[0][0] as {
-      tipo: TipoMovimientoCtaCte;
+    const movimiento = repos.get(MovimientoCtaCorriente)!.create.mock.calls[0][0] as {
+      tipo: TipoMovimientoCtaCorriente;
       monto: number;
-      saldoResultante: number;
+      saldoPosterior: number;
     };
-    expect(movimiento.tipo).toBe(TipoMovimientoCtaCte.NOTA_CREDITO);
-    expect(movimiento.monto).toBe(-2000);
-    expect(movimiento.saldoResultante).toBe(3000);
+    expect(movimiento.tipo).toBe(TipoMovimientoCtaCorriente.NOTA_CREDITO);
+    expect(movimiento.monto).toBe(2000);
+    expect(movimiento.saldoPosterior).toBe(3000);
 
     const cuentaGuardada = repos.get(CuentaCorriente)!.save.mock.calls[0][0] as { saldo: number };
     expect(cuentaGuardada.saldo).toBe(3000);
@@ -202,7 +204,7 @@ describe('DevolucionesService', () => {
     expect(devolucion.empleadoAutoriza.idEmpleado).toBe(9);
     expect(devolucion.motivo).toBe('Producto defectuoso');
 
-    const detalleGuardado = repos.get(VentaDetalle)!.save.mock.calls[0][0] as { cantidadDevuelta: number };
+    const detalleGuardado = repos.get(DetalleVenta)!.save.mock.calls[0][0] as { cantidadDevuelta: number };
     expect(detalleGuardado.cantidadDevuelta).toBe(3);
   });
 });
