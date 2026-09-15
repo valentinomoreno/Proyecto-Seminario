@@ -1,11 +1,17 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Min } from 'class-validator';
+import { IsInt, IsNumber, IsOptional, Min } from 'class-validator';
 
 export class CreateCuentaCorrienteDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
   clienteId: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  limiteCredito?: number = 0;
 }
 
 export class QueryCuentasCorrientesDto {

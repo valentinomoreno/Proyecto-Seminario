@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, DataSource, Repository } from 'typeorm';
 import { Persona } from '../../usuarios/entities/persona.entity';
+import { CuentaCorriente } from '../../cuentas-corrientes/entities/cuenta-corriente.entity';
 import { CreateClienteEmpresaDto, CreateClientePersonaDto, QueryClientesDto } from '../dto/cliente.dto';
 import { ClienteEmpresa } from '../entities/cliente-empresa.entity';
 import { ClientePersona } from '../entities/cliente-persona.entity';
@@ -43,6 +44,7 @@ export class TypeOrmClientesRepository implements IClientesRepository {
             .where('persona.dni ILIKE :documento', { documento: `%${documento}%` })
             .orWhere('persona.cuil ILIKE :documento', { documento: `%${documento}%` })
             .orWhere('empresa.cuit ILIKE :documento', { documento: `%${documento}%` })
+            .orWhere('persona.nombre ILIKE :buscar', { buscar: `%${buscar}%` })
             .orWhere('persona.apellido ILIKE :buscar', { buscar: `%${buscar}%` })
             .orWhere('empresa.razonSocial ILIKE :buscar', { buscar: `%${buscar}%` });
         }),
@@ -104,6 +106,9 @@ export class TypeOrmClientesRepository implements IClientesRepository {
         cliente,
         personaRegistro,
       }));
+      if (dto.cuentaCorrienteHabilitada) {
+        await this.createCuentaCorriente(manager, cliente, dto.limiteCredito ?? 0);
+      }
       return cliente.idCliente;
     });
 
@@ -127,6 +132,9 @@ export class TypeOrmClientesRepository implements IClientesRepository {
         personaContacto: dto.personaContacto.trim(),
         cliente,
       }));
+      if (dto.cuentaCorrienteHabilitada) {
+        await this.createCuentaCorriente(manager, cliente, dto.limiteCredito ?? 0);
+      }
       return cliente.idCliente;
     });
 
@@ -141,5 +149,24 @@ export class TypeOrmClientesRepository implements IClientesRepository {
 
   async softRemove(cliente: Cliente): Promise<Cliente> {
     return this.ormRepository.softRemove(cliente);
+  }
+
+  private async createCuentaCorriente(
+    manager: import('typeorm').EntityManager,
+    cliente: Cliente,
+    limiteCredito: number,
+  ): Promise<void> {
+    const result = await manager.query<Array<{ nextval: string }>>(
+      "SELECT nextval('cuenta_corriente_numero_seq') AS nextval",
+    );
+    const numeroCuenta = `CC-${String(result[0]?.nextval ?? '1').padStart(6, '0')}`;
+    await manager.getRepository(CuentaCorriente).save(manager.getRepository(CuentaCorriente).create({
+      numeroCuenta,
+      saldo: 0,
+      limiteCredito,
+      activa: true,
+      fechaBaja: null,
+      cliente,
+    }));
   }
 }

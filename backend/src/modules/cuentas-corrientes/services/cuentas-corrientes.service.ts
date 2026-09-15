@@ -49,12 +49,20 @@ export class CuentasCorrientesService {
         existing.activa = true;
         existing.fechaBaja = null;
         existing.saldo = 0;
+        existing.limiteCredito = dto.limiteCredito ?? 0;
         await this.repository.save(existing);
         return this.toResponse(await this.requireCuenta(existing.idCuentaCorriente));
       }
 
       const numeroCuenta = await this.repository.generateNextNumber();
-      const cuenta = this.repository.create({ numeroCuenta, saldo: 0, activa: true, fechaBaja: null, cliente });
+      const cuenta = this.repository.create({
+        numeroCuenta,
+        saldo: 0,
+        limiteCredito: dto.limiteCredito ?? 0,
+        activa: true,
+        fechaBaja: null,
+        cliente,
+      });
       const saved = await this.repository.save(cuenta);
       return this.toResponse(await this.requireCuenta(saved.idCuentaCorriente));
     } catch (error) {
@@ -83,10 +91,14 @@ export class CuentasCorrientesService {
   }
 
   private toResponse(cuenta: CuentaCorriente) {
+    const limiteCredito = Number(cuenta.limiteCredito) || 0;
+    const saldo = Number(cuenta.saldo) || 0;
     return {
       idCuentaCorriente: cuenta.idCuentaCorriente,
       numeroCuenta: cuenta.numeroCuenta,
-      saldo: cuenta.saldo,
+      saldo,
+      limiteCredito,
+      creditoDisponible: Math.max(0, limiteCredito - saldo),
       estado: cuenta.activa ? 'ACTIVA' : 'INACTIVA',
       fechaAlta: cuenta.fechaAlta,
       fechaBaja: cuenta.fechaBaja,

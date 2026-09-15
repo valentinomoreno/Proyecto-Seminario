@@ -1,12 +1,15 @@
 import {
+  Check,
   Column,
   CreateDateColumn,
   Entity,
   JoinColumn,
+  OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { Cliente } from '../../clientes/entities/cliente.entity';
+import { MovimientoCtaCorriente } from './movimiento-cta-corriente.entity';
 
 const decimalTransformer = {
   to: (value: number) => value,
@@ -14,6 +17,8 @@ const decimalTransformer = {
 };
 
 @Entity('cuentas_corrientes')
+@Check('CHK_cuenta_saldo_no_negativo', '"saldo" >= 0')
+@Check('CHK_cuenta_limite_no_negativo', '"limite_credito" >= 0')
 export class CuentaCorriente {
   @PrimaryGeneratedColumn({ name: 'id_cuenta_corriente' })
   idCuentaCorriente: number;
@@ -23,6 +28,9 @@ export class CuentaCorriente {
 
   @Column({ type: 'numeric', precision: 14, scale: 2, default: 0, transformer: decimalTransformer })
   saldo: number;
+
+  @Column({ name: 'limite_credito', type: 'numeric', precision: 14, scale: 2, default: 0, transformer: decimalTransformer })
+  limiteCredito: number;
 
   @Column({ default: true })
   activa: boolean;
@@ -36,4 +44,7 @@ export class CuentaCorriente {
   @OneToOne(() => Cliente, (cliente) => cliente.cuentaCorriente, { nullable: false, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'id_cliente' })
   cliente: Cliente;
+
+  @OneToMany(() => MovimientoCtaCorriente, (movimiento) => movimiento.cuentaCorriente)
+  movimientos: MovimientoCtaCorriente[];
 }

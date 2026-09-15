@@ -1,13 +1,16 @@
 import { Transform, Type } from 'class-transformer';
 import {
   IsEmail,
+  IsBoolean,
   IsInt,
   IsNotEmpty,
   IsOptional,
+  IsNumber,
   IsString,
   Matches,
   MaxLength,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import { IsIdentificadorFiscalArgentino, normalizarDocumento } from '../utils/documento.util';
 
@@ -45,6 +48,16 @@ class CreateClienteDto extends ContactoClienteDto {
   @IsInt()
   @Min(1)
   condicionIvaId: number;
+
+  @IsOptional()
+  @IsBoolean()
+  cuentaCorrienteHabilitada?: boolean = false;
+
+  @ValidateIf((dto: CreateClienteDto) => Boolean(dto.cuentaCorrienteHabilitada))
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  limiteCredito?: number;
 }
 
 export class CreateClientePersonaDto extends CreateClienteDto {

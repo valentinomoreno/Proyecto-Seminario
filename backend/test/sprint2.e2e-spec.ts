@@ -63,7 +63,12 @@ describe('Sprint 2 (e2e)', () => {
       .auth(employeeToken, { type: 'bearer' })
       .expect(200);
     const condicionesBody = condiciones.body as Array<{ idCondicionIva: number; codigo: string }>;
-    expect(condicionesBody).toHaveLength(3);
+    expect(condicionesBody).toEqual(expect.arrayContaining([
+      expect.objectContaining({ codigo: 'CONSUMIDOR_FINAL' }),
+      expect.objectContaining({ codigo: 'MONOTRIBUTO' }),
+      expect.objectContaining({ codigo: 'RESPONSABLE_INSCRIPTO' }),
+      expect.objectContaining({ codigo: 'EXENTO' }),
+    ]));
     const consumidorFinalId = condicionesBody.find((item) => item.codigo === 'CONSUMIDOR_FINAL')?.idCondicionIva;
     const responsableId = condicionesBody.find((item) => item.codigo === 'RESPONSABLE_INSCRIPTO')?.idCondicionIva;
     expect(consumidorFinalId).toBeDefined();

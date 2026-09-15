@@ -1,6 +1,5 @@
 export type TipoCliente = 'PERSONA' | 'EMPRESA';
 export type EstadoCuenta = 'SIN_CUENTA' | 'ACTIVA' | 'INACTIVA';
-
 export interface CondicionIva {
   idCondicionIva: number;
   codigo: string;
@@ -24,6 +23,8 @@ export interface CuentaCorrienteResumen {
   idCuentaCorriente: number;
   numeroCuenta: string;
   saldo: number;
+  limiteCredito?: number;
+  creditoDisponible?: number;
   estado: Exclude<EstadoCuenta, 'SIN_CUENTA'>;
 }
 
@@ -60,6 +61,8 @@ export interface CreateClientePersonaPayload extends ContactoClientePayload {
   dni: string;
   cuil: string;
   condicionIvaId: number;
+  cuentaCorrienteHabilitada?: boolean;
+  limiteCredito?: number;
 }
 
 export interface CreateClienteEmpresaPayload extends ContactoClientePayload {
@@ -67,4 +70,6 @@ export interface CreateClienteEmpresaPayload extends ContactoClientePayload {
   razonSocial: string;
   personaContacto: string;
   condicionIvaId: number;
+  cuentaCorrienteHabilitada?: boolean;
+  limiteCredito?: number;
 }

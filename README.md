@@ -1,6 +1,6 @@
 # Sistema de Gestión Integral para Local de Autopartes
 
-Proyecto de Seminario Integrador (UTN). Los Sprint 1 y 2 implementan autenticación JWT con roles, catálogo de productos, stock, ubicación física, clientes particulares/empresas y la habilitación base de cuentas corrientes.
+Proyecto de Seminario Integrador (UTN). Los Sprint 1 a 3 implementan autenticación JWT con roles, catálogo y stock, clientes, cuentas corrientes y el núcleo transaccional de ventas, cobros, comprobantes y POS.
 
 ## Requisitos
 
@@ -58,6 +58,20 @@ DELETE /cuentas-corrientes/:id
 ```
 
 Las bajas de clientes y cuentas corrientes son exclusivas del Administrador. Una cuenta solo puede darse de baja con saldo cero; al reactivarla conserva su número `CC-000001` y vuelve a saldo cero. La baja de un cliente se rechaza mientras mantenga una cuenta activa.
+
+## API y POS del Sprint 3
+
+El POS protegido está disponible en `/pos`. Permite buscar productos, seleccionar o registrar rápidamente un cliente, cobrar al contado o imputar a cuenta corriente y visualizar el comprobante resultante.
+
+```text
+GET  /ventas?buscar=&page=1&limit=20
+GET  /ventas/:id
+POST /ventas
+```
+
+`POST /ventas` recibe `idCliente`, `modalidadPago` e `items` con `idProducto` y `cantidad`. Para contado también requiere `metodoCobro`; para cuenta corriente no acepta datos de cobro. El alta rápida de cliente puede enviar `cuentaCorrienteHabilitada` y `limiteCredito` a `POST /clientes/persona` o `POST /clientes/empresa`.
+
+Cada venta se ejecuta en una transacción con bloqueo pesimista de productos. La operación valida y descuenta stock, registra Kardex y genera Cobro + Factura A/B/C para contado, o Movimiento de Cuenta Corriente + Remito para crédito. Los números de comprobante son correlativos internos. Mientras no se integre un proveedor fiscal/ARCA, las facturas quedan sin CAE y la interfaz las identifica como pendientes de autorización fiscal; no deben considerarse comprobantes fiscales válidos.
 
 ## Estructura
 
