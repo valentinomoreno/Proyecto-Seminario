@@ -16,6 +16,7 @@ import { EstadoVenta } from '../enums/estado-venta.enum';
 import { ModalidadPago } from '../enums/modalidad-pago.enum';
 import { TipoFactura } from '../enums/tipo-factura.enum';
 import { TipoMovimientoStock } from '../enums/tipo-movimiento-stock.enum';
+import { excedeLimiteCredito } from '../utils/limite-credito.util';
 import {
   IRegistroVentaDatos,
   IVentasRepository,
@@ -126,7 +127,9 @@ export class TypeOrmVentasRepository implements IVentasRepository {
           );
         }
         const saldoPosterior = this.redondear(cuentaCorriente.saldo + total);
-        if (saldoPosterior > cuentaCorriente.limiteCredito) {
+        // Un límite en cero representa una cuenta sin tope configurado. Es el valor
+        // usado por las cuentas habilitadas desde Clientes y no debe impedir su primera compra.
+        if (excedeLimiteCredito(saldoPosterior, cuentaCorriente.limiteCredito)) {
           throw new BadRequestException(
             `Límite de crédito excedido. Disponible: $${Math.max(0, cuentaCorriente.limiteCredito - cuentaCorriente.saldo).toFixed(2)}; venta: $${total.toFixed(2)}.`,
           );

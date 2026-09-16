@@ -11,8 +11,8 @@ export class MarcasService {
     @Inject(PRODUCTOS_REPOSITORY) private readonly productosRepository: IProductosRepository,
   ) {}
 
-  findAll() {
-    return this.repository.findAll();
+  findAll(categoriaId?: number) {
+    return this.repository.findAll(categoriaId);
   }
 
   async findOne(id: number) {

@@ -239,13 +239,13 @@ export function PuntoDeVentaPage() {
                               </p>
                             </div>
 
-                            <div className="mt-3 pt-2 border-top d-flex justify-content-between align-items-center">
-                              <span className="fs-5 fw-bold text-primary">
+                            <div className="mt-3 pt-2 border-top pos-product-card-footer">
+                              <span className="fs-5 fw-bold text-primary pos-product-price">
                                 ${Number(prod.precioUnitario).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                               </span>
                               <button
                                 type="button"
-                                className="btn btn-sm btn-primary d-flex align-items-center gap-1"
+                                className="btn btn-sm btn-primary d-flex align-items-center justify-content-center gap-1 w-100"
                                 disabled={sinStock || stockRestante <= 0}
                                 onClick={() => agregarItem(prod, 1)}
                                 title={stockRestante <= 0 ? 'Stock máximo alcanzado en carrito' : 'Agregar al mostrador'}
@@ -344,7 +344,7 @@ export function PuntoDeVentaPage() {
                       <span className="text-muted">Cuenta Corriente:</span>
                       {tieneCuentaActiva(clienteSeleccionado) ? (
                         <span className="text-success fw-bold">
-                          ✓ Disponible: ${Number(clienteSeleccionado.cuentaCorriente?.creditoDisponible ?? 0).toLocaleString('es-AR')}
+                          ✓ Activa · Saldo adeudado: ${Number(clienteSeleccionado.cuentaCorriente?.saldo ?? 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                         </span>
                       ) : (
                         <span className="text-danger">✗ No habilitada</span>

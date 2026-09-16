@@ -1,11 +1,13 @@
+import { Link } from 'react-router-dom';
 import type { VentaResponse } from '../types/venta.types';
 
 interface Props {
   venta: VentaResponse;
   onNuevaVenta: () => void;
+  modoConsulta?: boolean;
 }
 
-export function ModalComprobante({ venta, onNuevaVenta }: Props) {
+export function ModalComprobante({ venta, onNuevaVenta, modoConsulta = false }: Props) {
   const factura = venta.factura;
   const cobro = venta.cobro;
   const cliente = venta.cliente;
@@ -25,7 +27,7 @@ export function ModalComprobante({ venta, onNuevaVenta }: Props) {
           <div className="modal-header bg-success text-white">
             <h5 className="modal-title fw-bold d-flex align-items-center gap-2">
               <i className="ti ti-circle-check" />
-              ¡Operación Registrada con Éxito!
+              {modoConsulta ? 'Detalle de la venta' : '¡Operación Registrada con Éxito!'}
             </h5>
             <button type="button" className="btn-close btn-close-white" onClick={onNuevaVenta} aria-label="Cerrar" />
           </div>
@@ -158,13 +160,25 @@ export function ModalComprobante({ venta, onNuevaVenta }: Props) {
             >
               <i className="ti ti-printer" /> Imprimir Comprobante
             </button>
-            <button
-              type="button"
-              className="btn btn-primary d-flex align-items-center gap-2 fw-bold"
-              onClick={onNuevaVenta}
-            >
-              <i className="ti ti-plus" /> Iniciar Nueva Venta
-            </button>
+            <div className="d-flex flex-wrap gap-2">
+              {!modoConsulta && (
+                <Link
+                  to="/ventas"
+                  className="btn btn-outline-primary d-flex align-items-center gap-2 fw-bold"
+                  onClick={onNuevaVenta}
+                >
+                  <i className="ti ti-history" /> Ver historial
+                </Link>
+              )}
+              <button
+                type="button"
+                className="btn btn-primary d-flex align-items-center gap-2 fw-bold"
+                onClick={onNuevaVenta}
+              >
+                <i className={`ti ${modoConsulta ? 'ti-x' : 'ti-plus'}`} />
+                {modoConsulta ? 'Cerrar' : 'Iniciar Nueva Venta'}
+              </button>
+            </div>
           </div>
         </div>
       </div>

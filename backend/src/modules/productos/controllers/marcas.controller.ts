@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { NombreRol } from '../../../common/enums/nombre-rol.enum';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
@@ -10,7 +10,7 @@ import { MarcasService } from '../services/marcas.service';
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class MarcasController {
   constructor(private readonly service: MarcasService) {}
-  @Get() findAll() { return this.service.findAll(); }
+  @Get() findAll(@Query('categoriaId', new ParseIntPipe({ optional: true })) categoriaId?: number) { return this.service.findAll(categoriaId); }
   @Get(':id') findOne(@Param('id', ParseIntPipe) id: number) { return this.service.findOne(id); }
   @Post() @Roles(NombreRol.ADMINISTRADOR) create(@Body() dto: CreateMarcaDto) { return this.service.create(dto); }
   @Put(':id') @Roles(NombreRol.ADMINISTRADOR) update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateMarcaDto) { return this.service.update(id, dto); }

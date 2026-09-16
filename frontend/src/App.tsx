@@ -10,6 +10,7 @@ import { FormProductoPage } from './pages/FormProductoPage';
 import { LoginPage } from './pages/LoginPage';
 import { PuntoDeVentaPage } from './pages/PuntoDeVentaPage';
 import { RegistrarDevolucionPage } from './pages/RegistrarDevolucionPage';
+import { VentasHistorialPage } from './pages/VentasHistorialPage';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 
 export default function App() {
@@ -19,7 +20,9 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
-            <Route path="/pos" element={<PuntoDeVentaPage />} />
+            <Route path="/ventas/nueva" element={<PuntoDeVentaPage />} />
+            <Route path="/ventas" element={<VentasHistorialPage />} />
+            <Route path="/pos" element={<Navigate to="/ventas/nueva" replace />} />
             <Route path="/catalogo" element={<CatalogoPage />} />
             <Route path="/clientes" element={<ClientesListPage />} />
             <Route path="/clientes/nuevo" element={<FormClientePage />} />
@@ -33,7 +36,7 @@ export default function App() {
             </Route>
           </Route>
         </Route>
-        <Route path="*" element={<Navigate to="/pos" replace />} />
+        <Route path="*" element={<Navigate to="/ventas/nueva" replace />} />
       </Routes>
     </CartProvider>
   );

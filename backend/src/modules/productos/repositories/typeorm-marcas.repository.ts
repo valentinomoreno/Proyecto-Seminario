@@ -11,8 +11,15 @@ export class TypeOrmMarcasRepository implements IMarcasRepository {
     private readonly ormRepository: Repository<Marca>,
   ) {}
 
-  async findAll(): Promise<Marca[]> {
-    return this.ormRepository.find({ order: { nombre: 'ASC' } });
+  async findAll(categoriaId?: number): Promise<Marca[]> {
+    if (!categoriaId) {
+      return this.ormRepository.find({ order: { nombre: 'ASC' } });
+    }
+    return this.ormRepository
+      .createQueryBuilder('marca')
+      .innerJoin('marca.categorias', 'categoria', 'categoria.idCategoria = :categoriaId', { categoriaId })
+      .orderBy('marca.nombre', 'ASC')
+      .getMany();
   }
 
   async findById(id: number): Promise<Marca | null> {

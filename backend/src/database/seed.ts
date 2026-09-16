@@ -211,10 +211,27 @@ async function seed(): Promise<void> {
       { nombre: 'Motor', descripcion: 'Repuestos y componentes del motor.' },
       { nombre: 'Frenos', descripcion: 'Componentes del sistema de frenado.' },
       { nombre: 'Electricidad', descripcion: 'Componentes eléctricos y electrónicos.' },
+      { nombre: 'Suspensión y Dirección', descripcion: 'Amortiguación, tren delantero y dirección.' },
+      { nombre: 'Transmisión y Embrague', descripcion: 'Embragues y componentes de transmisión.' },
+      { nombre: 'Filtros', descripcion: 'Filtros de aceite, aire, combustible y habitáculo.' },
+      { nombre: 'Lubricantes y Fluidos', descripcion: 'Aceites, refrigerantes y fluidos automotrices.' },
+      { nombre: 'Refrigeración', descripcion: 'Radiadores, bombas, termostatos y mangueras.' },
+      { nombre: 'Escape', descripcion: 'Componentes del sistema de escape.' },
+      { nombre: 'Encendido', descripcion: 'Bujías, bobinas y componentes de encendido.' },
+      { nombre: 'Iluminación', descripcion: 'Lámparas, ópticas y señalización.' },
+      { nombre: 'Carrocería', descripcion: 'Espejos, cerraduras y piezas de carrocería.' },
+      { nombre: 'Rodamientos y Retenes', descripcion: 'Rodamientos, mazas y retenes.' },
+      { nombre: 'Correas y Distribución', descripcion: 'Correas, tensores y kits de distribución.' },
+      { nombre: 'Accesorios', descripcion: 'Accesorios y equipamiento para el vehículo.' },
     ]) {
       await restoreOrCreate(manager, Categoria, { nombre: categoria.nombre }, categoria);
     }
-    for (const nombre of ['Bosch', 'NGK', 'Corven']) {
+    for (const nombre of [
+      'ACDelco', 'Bosch', 'Castrol', 'Continental', 'Corven', 'Dayco', 'Denso', 'FAG',
+      'Ferodo', 'Fras-le', 'Gates', 'LuK', 'Magneti Marelli', 'Mahle', 'MANN-FILTER',
+      'Mobil', 'Monroe', 'Moura', 'NGK', 'Osram', 'Philips', 'Sachs', 'Shell', 'SKF',
+      'Timken', 'TotalEnergies', 'TRW', 'Valeo', 'Wega', 'Willard', 'Walker',
+    ]) {
       await restoreOrCreate(manager, Marca, { nombre }, { nombre });
     }
 

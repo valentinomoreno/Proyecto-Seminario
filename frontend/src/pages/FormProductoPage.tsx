@@ -51,24 +51,24 @@ export function FormProductoPage() {
     let active = true;
     async function load() {
       try {
-        const [categoriasResponse, marcasResponse, depositosResponse] = await Promise.all([
+        const [categoriasResponse, depositosResponse] = await Promise.all([
           api.get<Categoria[]>('/categorias'),
-          api.get<Marca[]>('/marcas'),
           api.get<Deposito[]>('/depositos'),
         ]);
         if (!active) return;
         setCategorias(categoriasResponse.data);
-        setMarcas(marcasResponse.data);
         setDepositos(depositosResponse.data);
 
         if (id) {
           const { data: producto } = await api.get<Producto>(`/productos/${id}`);
-          const [sectoresResponse, estantesResponse] = await Promise.all([
+          const [marcasResponse, sectoresResponse, estantesResponse] = await Promise.all([
+            api.get<Marca[]>('/marcas', { params: { categoriaId: producto.categoria.idCategoria } }),
             api.get<Sector[]>('/sectores', { params: { depositoId: producto.ubicacion.deposito.idDeposito } }),
             api.get<Estante[]>('/estantes', { params: { sectorId: producto.ubicacion.sector.idSector } }),
           ]);
           if (!active) return;
           setCodigoActual(producto.sku);
+          setMarcas(marcasResponse.data);
           setSectores(sectoresResponse.data);
           setEstantes(estantesResponse.data);
           setForm({
@@ -96,6 +96,18 @@ export function FormProductoPage() {
 
   function update<K extends keyof FormState>(field: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function selectCategoria(categoriaId: string) {
+    setForm((current) => ({ ...current, categoriaId, marcaId: '' }));
+    setMarcas([]);
+    if (!categoriaId) return;
+    try {
+      const { data } = await api.get<Marca[]>('/marcas', { params: { categoriaId } });
+      setMarcas(data);
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError));
+    }
   }
 
   async function handleFotoChange(event: ChangeEvent<HTMLInputElement>) {
@@ -265,7 +277,7 @@ export function FormProductoPage() {
                       id="select-categoria"
                       className="form-select"
                       value={form.categoriaId}
-                      onChange={(e) => update('categoriaId', e.target.value)}
+                      onChange={(e) => void selectCategoria(e.target.value)}
                       required
                     >
                       <option value="">Seleccionar categoría</option>
@@ -284,9 +296,12 @@ export function FormProductoPage() {
                       className="form-select"
                       value={form.marcaId}
                       onChange={(e) => update('marcaId', e.target.value)}
+                      disabled={!form.categoriaId}
                       required
                     >
-                      <option value="">Seleccionar marca</option>
+                      <option value="">
+                        {form.categoriaId ? 'Seleccionar marca compatible' : 'Primero seleccione una categoría'}
+                      </option>
                       {marcas.map((item) => (
                         <option key={item.idMarca} value={item.idMarca}>{item.nombre}</option>
                       ))}

@@ -1,4 +1,5 @@
-import { Column, DeleteDateColumn, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, DeleteDateColumn, Entity, ManyToMany, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Categoria } from './categoria.entity';
 import { Producto } from './producto.entity';
 
 @Entity('marcas')
@@ -14,4 +15,7 @@ export class Marca {
 
   @OneToMany(() => Producto, (producto) => producto.marca)
   productos: Producto[];
+
+  @ManyToMany(() => Categoria, (categoria) => categoria.marcas)
+  categorias: Categoria[];
 }

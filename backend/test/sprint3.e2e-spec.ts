@@ -189,4 +189,30 @@ describe('Sprint 3 - ventas, cobros y cuenta corriente (e2e)', () => {
     );
     expect(movimiento[0]?.tipo).toBe('IMPUTACION_VENTA');
   });
+
+  it('permite la primera compra a una cuenta con saldo y límite en cero', async () => {
+    await request(app.getHttpServer())
+      .post('/cuentas-corrientes')
+      .auth(token, { type: 'bearer' })
+      .send({ clienteId: clienteConsumidorId })
+      .expect(201);
+
+    const venta = await request(app.getHttpServer())
+      .post('/ventas')
+      .auth(token, { type: 'bearer' })
+      .send({
+        idCliente: clienteConsumidorId,
+        modalidadPago: 'CUENTA_CORRIENTE',
+        items: [{ idProducto: producto.idProducto, cantidad: 1 }],
+      })
+      .expect(201);
+    ventasCreadas.push(venta.body.idVenta as number);
+
+    const cuenta = await dataSource.query<Array<{ saldo: string; limite_credito: string }>>(
+      `SELECT "saldo", "limite_credito" FROM "cuentas_corrientes" WHERE "id_cliente" = $1`,
+      [clienteConsumidorId],
+    );
+    expect(Number(cuenta[0]?.limite_credito)).toBe(0);
+    expect(Number(cuenta[0]?.saldo)).toBe(Number(venta.body.total));
+  });
 });

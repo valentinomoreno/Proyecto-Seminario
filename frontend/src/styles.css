@@ -58,6 +58,12 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
+@media (max-width: 1024px) {
+  .btn-sidebar-collapse {
+    display: none !important;
+  }
+}
+
 /* SIDEBAR USER MINI-CARD */
 .sidebar-user-card {
   display: flex;
@@ -253,4 +259,16 @@
   background: rgba(0, 0, 0, 0.4);
   z-index: 1020;
   backdrop-filter: blur(2px);
+}
+
+/* POS: el precio y la acción conservan su propio renglón aun con importes largos. */
+.pos-product-card-footer {
+  align-items: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.pos-product-price {
+  overflow-wrap: anywhere;
 }

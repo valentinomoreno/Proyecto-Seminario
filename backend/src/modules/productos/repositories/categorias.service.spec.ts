@@ -51,7 +51,7 @@ describe('CategoriasService with Repository (DIP)', () => {
   });
 
   it('findAll delegates to ICategoriasRepository without ORM coupling', async () => {
-    const mockCategorias = [{ idCategoria: 1, nombre: 'Motor', descripcion: null, fechaBaja: null, productos: [] }];
+    const mockCategorias = [{ idCategoria: 1, nombre: 'Motor', descripcion: null, fechaBaja: null, productos: [], marcas: [] }];
     mockCategoriasRepo.findAll.mockResolvedValue(mockCategorias);
 
     const result = await service.findAll();

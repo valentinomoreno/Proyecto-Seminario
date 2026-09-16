@@ -16,9 +16,9 @@ export function AppLayout() {
   const closeMobileNav = () => setMobileNavOpen(false);
 
   return (
-    <div className={`pc-layout ${sidebarCollapsed ? 'pc-sidebar-hide' : ''}`}>
+    <div className="pc-layout">
       {/* SIDEBAR / DRAWER DE DATTA ABLE */}
-      <nav className={`pc-sidebar ${mobileNavOpen ? 'mob-sidebar-active' : ''}`}>
+      <nav className={`pc-sidebar ${sidebarCollapsed ? 'pc-sidebar-hide' : ''} ${mobileNavOpen ? 'mob-sidebar-active' : ''}`}>
         <div className="navbar-wrapper">
           {/* LOGO HEADER */}
           <div className="m-header">
@@ -33,7 +33,8 @@ export function AppLayout() {
               type="button"
               className="btn-sidebar-collapse d-none d-lg-flex"
               onClick={toggleSidebar}
-              title={sidebarCollapsed ? 'Expandir menú' : 'Colapsar menú'}
+              title="Colapsar menú"
+              aria-label="Colapsar menú"
             >
               <i className="ti ti-menu-2" />
             </button>
@@ -44,20 +45,6 @@ export function AppLayout() {
             <ul className="pc-navbar">
               <li className="pc-item pc-caption">
                 <label>INVENTARIO & VENTAS</label>
-              </li>
-
-              <li className="pc-item">
-                <NavLink
-                  to="/pos"
-                  className={({ isActive }) => `pc-link ${isActive ? 'active' : ''}`}
-                  onClick={closeMobileNav}
-                >
-                  <span className="pc-micon">
-                    <i className="ti ti-device-laptop" />
-                  </span>
-                  <span className="pc-mtext">Punto de Venta (POS)</span>
-                  <span className="pc-badge bg-success text-white">Mostrador</span>
-                </NavLink>
               </li>
 
               <li className="pc-item">
@@ -97,7 +84,6 @@ export function AppLayout() {
                       <i className="ti ti-plus" />
                     </span>
                     <span className="pc-mtext">Nuevo Repuesto</span>
-                    <span className="pc-badge">Admin</span>
                   </NavLink>
                 </li>
               )}
@@ -116,6 +102,20 @@ export function AppLayout() {
                     <i className="ti ti-shopping-cart-plus" />
                   </span>
                   <span className="pc-mtext">Nueva Venta</span>
+                </NavLink>
+              </li>
+
+              <li className="pc-item">
+                <NavLink
+                  to="/ventas"
+                  end
+                  className={({ isActive }) => `pc-link ${isActive ? 'active' : ''}`}
+                  onClick={closeMobileNav}
+                >
+                  <span className="pc-micon">
+                    <i className="ti ti-history" />
+                  </span>
+                  <span className="pc-mtext">Historial de Ventas</span>
                 </NavLink>
               </li>
 
@@ -188,6 +188,17 @@ export function AppLayout() {
       <header className="pc-header">
         <div className="header-wrapper">
           <div className="me-auto pc-mob-drp d-flex align-items-center gap-2">
+            {sidebarCollapsed && (
+              <button
+                type="button"
+                className="pc-head-link d-none d-lg-flex"
+                onClick={toggleSidebar}
+                aria-label="Expandir menú"
+                title="Expandir menú"
+              >
+                <i className="ti ti-menu-2" />
+              </button>
+            )}
             <button
               type="button"
               className="pc-head-link d-lg-none"
