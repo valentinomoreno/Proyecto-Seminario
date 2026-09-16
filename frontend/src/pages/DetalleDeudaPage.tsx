@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, getApiErrorMessage } from '../api/axios.instance';
+import { ConfirmActionModal } from '../components/ConfirmActionModal';
 import { useAuth } from '../context/useAuth';
 import type {
   CuentaCorrienteDetalle,
@@ -37,6 +38,7 @@ export function DetalleDeudaPage() {
   const [guardando, setGuardando] = useState(false);
   const [errorPago, setErrorPago] = useState('');
   const [exitoPago, setExitoPago] = useState('');
+  const [confirmacionPagoVisible, setConfirmacionPagoVisible] = useState(false);
 
   useEffect(() => {
     if (!idCliente) return;
@@ -50,7 +52,7 @@ export function DetalleDeudaPage() {
     return () => { active = false; };
   }, [idCliente, reloadKey]);
 
-  async function registrarPago(event: FormEvent) {
+  function solicitarConfirmacionPago(event: FormEvent) {
     event.preventDefault();
     setErrorPago('');
     setExitoPago('');
@@ -60,6 +62,18 @@ export function DetalleDeudaPage() {
       return;
     }
 
+    if (montoNumero > Number(cuenta?.deuda ?? 0)) {
+      setErrorPago('El pago no puede superar la deuda actual.');
+      return;
+    }
+
+    setConfirmacionPagoVisible(true);
+  }
+
+  async function registrarPago() {
+    const montoNumero = Number(monto);
+    if (!idCliente || !Number.isFinite(montoNumero) || montoNumero <= 0) return;
+    setConfirmacionPagoVisible(false);
     setGuardando(true);
     const payload: PagoPayload = {
       monto: montoNumero,
@@ -104,8 +118,9 @@ export function DetalleDeudaPage() {
     );
   }
 
-  const saldo = Number(cuenta.saldo ?? 0);
-  const conDeuda = saldo > 0;
+  const deuda = Number(cuenta.deuda ?? 0);
+  const saldoFavor = Number(cuenta.saldoFavor ?? cuenta.saldo ?? 0);
+  const conDeuda = deuda > 0;
 
   return (
     <div className="detalle-deuda-datta-view">
@@ -155,13 +170,15 @@ export function DetalleDeudaPage() {
                   <div className="fw-semibold">{formatearFechaHora(cuenta.fechaUltimoMovimiento)}</div>
                 </div>
                 <div className="col-md-4 text-md-end">
-                  <div className="small text-muted">Saldo actual</div>
+                  <div className="small text-muted">Deuda actual</div>
                   <div className={`fs-3 fw-bold font-monospace ${conDeuda ? 'text-danger' : 'text-success'}`}>
-                    $ {formatearMonto(saldo)}
+                    $ {formatearMonto(deuda)}
                   </div>
                   <span className={`badge ${conDeuda ? 'bg-light-danger text-danger' : 'bg-light-success text-success'}`}>
                     {conDeuda ? 'Con deuda pendiente' : 'Sin deuda'}
                   </span>
+                  <div className="small text-muted mt-2">Saldo a favor</div>
+                  <div className="fs-5 fw-bold font-monospace text-success">$ {formatearMonto(saldoFavor)}</div>
                 </div>
               </div>
             </div>
@@ -187,13 +204,14 @@ export function DetalleDeudaPage() {
                       <th>Tipo</th>
                       <th>Observaciones</th>
                       <th className="text-end">Monto</th>
-                      <th className="text-end">Saldo resultante</th>
+                      <th className="text-end">Deuda resultante</th>
+                      <th className="text-end">Saldo a favor</th>
                     </tr>
                   </thead>
                   <tbody>
                     {!cuenta.movimientos.length && (
                       <tr>
-                        <td colSpan={5} className="text-center py-5 text-muted">
+                        <td colSpan={6} className="text-center py-5 text-muted">
                           <i className="ti ti-file-off fs-1 d-block mb-2 text-secondary" />
                           La cuenta todavía no registra movimientos.
                         </td>
@@ -217,7 +235,10 @@ export function DetalleDeudaPage() {
                             {aumentaDeuda ? '+' : '−'} $ {formatearMonto(Math.abs(montoMovimiento))}
                           </td>
                           <td className="text-end font-monospace">
-                            $ {formatearMonto(movimiento.saldoPosterior)}
+                            $ {formatearMonto(movimiento.deudaPosterior ?? movimiento.saldoPosterior)}
+                          </td>
+                          <td className="text-end font-monospace text-success">
+                            $ {formatearMonto(movimiento.saldoFavorPosterior)}
                           </td>
                         </tr>
                       );
@@ -254,7 +275,7 @@ export function DetalleDeudaPage() {
                   </div>
                 )}
 
-                <form onSubmit={(event) => void registrarPago(event)}>
+                <form onSubmit={solicitarConfirmacionPago}>
                   <div className="mb-3">
                     <label className="form-label fw-semibold" htmlFor="input-pago-monto">
                       Monto <span className="text-danger">*</span>
@@ -313,6 +334,26 @@ export function DetalleDeudaPage() {
           </div>
         )}
       </div>
+
+      <ConfirmActionModal
+        open={confirmacionPagoVisible}
+        title="¿Confirmar el pago?"
+        message={(
+          <div>
+            <p>Se registrará un pago en la cuenta corriente de <strong>{nombreCliente(cuenta.cliente)}</strong>.</p>
+            <div className="d-flex justify-content-between border rounded p-3 bg-light">
+              <span>Monto del pago</span>
+              <strong className="text-success">$ {formatearMonto(Number(monto))}</strong>
+            </div>
+            <small className="text-muted d-block mt-2">La deuda se actualizará inmediatamente y el movimiento quedará en el historial.</small>
+          </div>
+        )}
+        confirmLabel="Sí, registrar pago"
+        confirmVariant="success"
+        processing={guardando}
+        onCancel={() => setConfirmacionPagoVisible(false)}
+        onConfirm={() => void registrarPago()}
+      />
     </div>
   );
 }

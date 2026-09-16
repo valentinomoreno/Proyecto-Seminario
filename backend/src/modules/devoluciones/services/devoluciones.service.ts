@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundEx
 import { DataSource, EntityManager } from 'typeorm';
 import { throwFriendlyDatabaseError } from '../../../common/database/database-error.util';
 import { UsuarioAutenticado } from '../../../common/interfaces/usuario-autenticado.interface';
+import { TipoCliente } from '../../clientes/entities/cliente.entity';
 import { CuentaCorriente } from '../../cuentas-corrientes/entities/cuenta-corriente.entity';
 import { MovimientoCtaCorriente } from '../../cuentas-corrientes/entities/movimiento-cta-corriente.entity';
 import { TipoMovimientoCtaCorriente } from '../../cuentas-corrientes/enums/tipo-movimiento-cta-corriente.enum';
@@ -176,11 +177,7 @@ export class DevolucionesService {
     );
   }
 
-  /**
-   * Nota de crédito → acredita al cliente, es decir reduce el saldo. El `monto`
-   * del movimiento se guarda siempre positivo (CHECK de la tabla); el signo de
-   * la operación lo determina el `tipo`, no el valor almacenado.
-   */
+  /** La nota de crédito cancela primero deuda y conserva el excedente como saldo a favor. */
   private async acreditarEnCuentaCorriente(
     manager: EntityManager,
     idCliente: number,
@@ -194,23 +191,34 @@ export class DevolucionesService {
       .getOne();
     if (!cuenta) throw new NotFoundException('El cliente no tiene cuenta corriente asociada.');
 
-    const saldoPosterior = Number(Math.max(0, cuenta.saldo - monto).toFixed(2));
+    const deudaActual = Number(cuenta.saldo) || 0;
+    const saldoFavorActual = Number(cuenta.saldoFavor) || 0;
+    const aplicadoADeuda = Math.min(deudaActual, monto);
+    const deudaPosterior = Number((deudaActual - aplicadoADeuda).toFixed(2));
+    const saldoFavorGenerado = Number((monto - aplicadoADeuda).toFixed(2));
+    const saldoFavorPosterior = Number((saldoFavorActual + saldoFavorGenerado).toFixed(2));
     await manager.getRepository(MovimientoCtaCorriente).save(
       manager.getRepository(MovimientoCtaCorriente).create({
         cuentaCorriente: cuenta,
         tipo: TipoMovimientoCtaCorriente.NOTA_CREDITO,
         monto,
-        saldoPosterior,
-        descripcion: `Nota de crédito por devolución ${devolucion.idDevolucion}`,
+        saldoPosterior: deudaPosterior,
+        saldoFavorPosterior,
+        descripcion: `Nota de crédito por devolución ${devolucion.idDevolucion}. Aplicado a deuda: $${aplicadoADeuda.toFixed(2)}; saldo a favor generado: $${saldoFavorGenerado.toFixed(2)}.`,
       }),
     );
 
-    cuenta.saldo = saldoPosterior;
+    cuenta.saldo = deudaPosterior;
+    cuenta.saldoFavor = saldoFavorPosterior;
     await manager.getRepository(CuentaCorriente).save(cuenta);
   }
 
   private toResponse(devolucion: Devolucion) {
     const detalle = devolucion.detalleVenta;
+    const cliente = detalle?.venta?.cliente;
+    const nombreMostrar = cliente?.tipo === TipoCliente.PERSONA
+      ? `${cliente.persona?.apellido ?? ''}, ${cliente.persona?.nombre ?? ''}`.replace(/^,\s*/, '').trim()
+      : cliente?.empresa?.razonSocial ?? '';
     return {
       idDevolucion: devolucion.idDevolucion,
       fecha: devolucion.fecha,
@@ -219,6 +227,27 @@ export class DevolucionesService {
       montoDevuelto: devolucion.montoDevuelto,
       aptoReingreso: devolucion.aptoReingreso,
       observaciones: devolucion.observaciones,
+      cliente: cliente && {
+        idCliente: cliente.idCliente,
+        tipo: cliente.tipo,
+        nombreMostrar,
+        contacto: {
+          telefono: cliente.telefono ?? null,
+          correo: cliente.correo ?? null,
+          direccion: cliente.direccion ?? null,
+        },
+        persona: cliente.persona ? {
+          nombre: cliente.persona.nombre,
+          apellido: cliente.persona.apellido,
+          dni: cliente.persona.dni,
+          cuil: cliente.persona.cuil,
+        } : null,
+        empresa: cliente.empresa ? {
+          cuit: cliente.empresa.cuit,
+          razonSocial: cliente.empresa.razonSocial,
+          personaContacto: cliente.empresa.personaContacto,
+        } : null,
+      },
       venta: detalle?.venta && {
         idVenta: detalle.venta.idVenta,
         numeroVenta: detalle.venta.numeroVenta,

@@ -102,6 +102,7 @@ export class MoraService {
         tipo: TipoMovimientoCtaCorriente.MORA,
         monto: recargo,
         saldoPosterior,
+        saldoFavorPosterior: Number(cuenta.saldoFavor) || 0,
         venta: null,
         descripcion: `Mora automática del ${(TASA_MORA_MENSUAL * 100).toFixed(0)}% sobre el saldo impago.`,
       });

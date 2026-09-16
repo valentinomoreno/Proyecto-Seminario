@@ -2,11 +2,13 @@ export interface Categoria {
   idCategoria: number;
   nombre: string;
   descripcion?: string | null;
+  marcas?: Marca[];
 }
 
 export interface Marca {
   idMarca: number;
   nombre: string;
+  categorias?: Categoria[];
 }
 
 export interface Deposito {

@@ -11,7 +11,10 @@ export interface MovimientoCtaCte {
   idMovimientoCtaCte: number;
   tipo: TipoMovimientoCtaCte;
   monto: number;
+  /** Compatibilidad: deuda resultante del movimiento. */
   saldoPosterior: number;
+  deudaPosterior: number;
+  saldoFavorPosterior: number;
   fecha: string;
   observaciones?: string | null;
 }
@@ -19,7 +22,10 @@ export interface MovimientoCtaCte {
 export interface CuentaCorriente {
   idCuentaCorriente: number;
   numeroCuenta: string;
+  /** Saldo a favor del cliente; no representa deuda. */
   saldo: number;
+  deuda: number;
+  saldoFavor: number;
   estado: EstadoCuentaCorriente;
   fechaAlta?: string | null;
   fechaBaja?: string | null;

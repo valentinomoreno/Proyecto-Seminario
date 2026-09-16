@@ -114,6 +114,9 @@ export class TypeOrmVentasRepository implements IVentasRepository {
       const total = totalCentavos / 100;
 
       let cuentaCorriente: CuentaCorriente | null = null;
+      let deudaPosterior = 0;
+      let saldoFavorPosterior = 0;
+      let saldoFavorAplicado = 0;
       if (datos.modalidadPago === ModalidadPago.CUENTA_CORRIENTE) {
         cuentaCorriente = await queryRunner.manager
           .getRepository(CuentaCorriente)
@@ -126,12 +129,16 @@ export class TypeOrmVentasRepository implements IVentasRepository {
             'La cuenta corriente del cliente no existe o no está activa.',
           );
         }
-        const saldoPosterior = this.redondear(cuentaCorriente.saldo + total);
+        const deudaActual = this.redondear(Number(cuentaCorriente.saldo));
+        const saldoFavorActual = this.redondear(Number(cuentaCorriente.saldoFavor) || 0);
+        saldoFavorAplicado = this.redondear(Math.min(saldoFavorActual, total));
+        saldoFavorPosterior = this.redondear(saldoFavorActual - saldoFavorAplicado);
+        deudaPosterior = this.redondear(deudaActual + total - saldoFavorAplicado);
         // Un límite en cero representa una cuenta sin tope configurado. Es el valor
         // usado por las cuentas habilitadas desde Clientes y no debe impedir su primera compra.
-        if (excedeLimiteCredito(saldoPosterior, cuentaCorriente.limiteCredito)) {
+        if (excedeLimiteCredito(deudaPosterior, cuentaCorriente.limiteCredito)) {
           throw new BadRequestException(
-            `Límite de crédito excedido. Disponible: $${Math.max(0, cuentaCorriente.limiteCredito - cuentaCorriente.saldo).toFixed(2)}; venta: $${total.toFixed(2)}.`,
+            `Límite de crédito excedido. Disponible: $${Math.max(0, cuentaCorriente.limiteCredito - deudaActual).toFixed(2)}; venta neta: $${(total - saldoFavorAplicado).toFixed(2)}.`,
           );
         }
       }
@@ -218,8 +225,8 @@ export class TypeOrmVentasRepository implements IVentasRepository {
           }),
         );
       } else {
-        const saldoPosterior = this.redondear(cuentaCorriente!.saldo + total);
-        cuentaCorriente!.saldo = saldoPosterior;
+        cuentaCorriente!.saldo = deudaPosterior;
+        cuentaCorriente!.saldoFavor = saldoFavorPosterior;
         await queryRunner.manager.getRepository(CuentaCorriente).save(cuentaCorriente!);
         await queryRunner.manager.getRepository(MovimientoCtaCorriente).save(
           queryRunner.manager.getRepository(MovimientoCtaCorriente).create({
@@ -227,8 +234,11 @@ export class TypeOrmVentasRepository implements IVentasRepository {
             venta,
             tipo: TipoMovimientoCtaCorriente.IMPUTACION_VENTA,
             monto: total,
-            saldoPosterior,
-            descripcion: `Imputación de ${numeroVenta}`,
+            saldoPosterior: deudaPosterior,
+            saldoFavorPosterior,
+            descripcion: saldoFavorAplicado > 0
+              ? `Imputación de ${numeroVenta}. Se aplicaron $${saldoFavorAplicado.toFixed(2)} de saldo a favor.`
+              : `Imputación de ${numeroVenta}`,
           }),
         );
 

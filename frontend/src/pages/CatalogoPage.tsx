@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, getApiErrorMessage } from '../api/axios.instance';
+import { ConfirmActionModal } from '../components/ConfirmActionModal';
 import { useAuth } from '../context/useAuth';
 import type { PaginatedResponse, Producto } from '../types/producto.types';
 
@@ -14,6 +15,8 @@ export function CatalogoPage() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [fotoModal, setFotoModal] = useState<{ url: string; nombre: string; sku: string } | null>(null);
+  const [productoEliminar, setProductoEliminar] = useState<Producto | null>(null);
+  const [eliminando, setEliminando] = useState(false);
 
   const { usuario } = useAuth();
   const esAdmin = usuario?.rol === 'ADMINISTRADOR';
@@ -41,12 +44,14 @@ export function CatalogoPage() {
   }, [consulta, page, reloadKey]);
 
   async function eliminar(producto: Producto) {
-    if (!window.confirm(`¿Dar de baja el producto "${producto.nombre}" (${producto.sku})?`)) return;
+    setEliminando(true);
     try {
       await api.delete(`/productos/${producto.idProducto}`);
+      setProductoEliminar(null);
       if (productos.length === 1 && page > 1) setPage(page - 1);
       else setReloadKey((current) => current + 1);
     } catch (requestError) { setError(getApiErrorMessage(requestError)); }
+    finally { setEliminando(false); }
   }
 
   function getFullImageUrl(relativeOrAbsolute?: string | null): string | null {
@@ -222,7 +227,7 @@ export function CatalogoPage() {
                             <button
                               type="button"
                               className="btn btn-outline-danger"
-                              onClick={() => void eliminar(producto)}
+                        onClick={() => setProductoEliminar(producto)}
                               title="Dar de baja"
                             >
                               <i className="ti ti-trash" />
@@ -284,6 +289,17 @@ export function CatalogoPage() {
           </div>
         </div>
       )}
+
+      <ConfirmActionModal
+        open={productoEliminar !== null}
+        title="¿Dar de baja el producto?"
+        message={<p className="mb-0">Se dará de baja <strong>{productoEliminar?.nombre}</strong> ({productoEliminar?.sku}). Ya no aparecerá disponible para nuevas ventas.</p>}
+        confirmLabel="Sí, dar de baja"
+        confirmVariant="danger"
+        processing={eliminando}
+        onCancel={() => setProductoEliminar(null)}
+        onConfirm={() => { if (productoEliminar) void eliminar(productoEliminar); }}
+      />
     </div>
   );
 }

@@ -22,9 +22,12 @@ export interface ClienteEmpresa {
 export interface CuentaCorrienteResumen {
   idCuentaCorriente: number;
   numeroCuenta: string;
+  /** Saldo a favor del cliente originado por devoluciones. */
   saldo: number;
+  deuda?: number;
+  saldoFavor?: number;
   limiteCredito?: number;
-  creditoDisponible?: number;
+  creditoDisponible?: number | null;
   estado: Exclude<EstadoCuenta, 'SIN_CUENTA'>;
 }
 

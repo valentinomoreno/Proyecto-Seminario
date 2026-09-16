@@ -1,4 +1,14 @@
-import { IsInt, IsNotEmpty, IsOptional, IsPositive, IsString, MaxLength } from 'class-validator';
+import {
+  ArrayMinSize,
+  ArrayUnique,
+  IsArray,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsPositive,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
 export class CreateCategoriaDto {
   @IsString()
@@ -30,6 +40,13 @@ export class CreateMarcaDto {
   @IsNotEmpty()
   @MaxLength(80)
   nombre: string;
+
+  @IsArray()
+  @ArrayMinSize(1, { message: 'La marca debe estar asociada al menos a una categoría.' })
+  @ArrayUnique()
+  @IsInt({ each: true })
+  @IsPositive({ each: true })
+  categoriaIds: number[];
 }
 
 export class UpdateMarcaDto {
@@ -38,6 +55,14 @@ export class UpdateMarcaDto {
   @IsNotEmpty()
   @MaxLength(80)
   nombre?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1, { message: 'La marca debe estar asociada al menos a una categoría.' })
+  @ArrayUnique()
+  @IsInt({ each: true })
+  @IsPositive({ each: true })
+  categoriaIds?: number[];
 }
 
 export class CreateDepositoDto {

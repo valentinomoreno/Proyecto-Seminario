@@ -13,17 +13,21 @@ export class TypeOrmMarcasRepository implements IMarcasRepository {
 
   async findAll(categoriaId?: number): Promise<Marca[]> {
     if (!categoriaId) {
-      return this.ormRepository.find({ order: { nombre: 'ASC' } });
+      return this.ormRepository.find({ relations: { categorias: true }, order: { nombre: 'ASC' } });
     }
     return this.ormRepository
       .createQueryBuilder('marca')
       .innerJoin('marca.categorias', 'categoria', 'categoria.idCategoria = :categoriaId', { categoriaId })
+      .leftJoinAndSelect('marca.categorias', 'categorias')
       .orderBy('marca.nombre', 'ASC')
       .getMany();
   }
 
   async findById(id: number): Promise<Marca | null> {
-    return this.ormRepository.findOneBy({ idMarca: id });
+    return this.ormRepository.findOne({
+      where: { idMarca: id },
+      relations: { categorias: true },
+    });
   }
 
   create(data: Partial<Marca>): Marca {
@@ -32,6 +36,16 @@ export class TypeOrmMarcasRepository implements IMarcasRepository {
 
   async save(marca: Marca): Promise<Marca> {
     return this.ormRepository.save(marca);
+  }
+
+  async setCategorias(marcaId: number, categoriaIds: number[]): Promise<void> {
+    const marca = await this.findById(marcaId);
+    const actuales = marca?.categorias.map((categoria) => categoria.idCategoria) ?? [];
+    await this.ormRepository
+      .createQueryBuilder()
+      .relation(Marca, 'categorias')
+      .of(marcaId)
+      .addAndRemove(categoriaIds, actuales);
   }
 
   async softRemove(marca: Marca): Promise<Marca> {

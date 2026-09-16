@@ -110,13 +110,51 @@ describe('DevolucionesService', () => {
       venta: { idVenta: 3, numeroVenta: 'VTA-00000003', fecha: hace(opciones.diasDesdeVenta), cliente: { idCliente: 4 } },
     });
     repos.get(Producto)!.findOne.mockResolvedValue({ idProducto: 10, nombre: 'Pastilla de freno', stock: 12 });
-    queryBuilder.getOne.mockResolvedValue({ idCuentaCorriente: 2, saldo: 5000 });
+    queryBuilder.getOne.mockResolvedValue({ idCuentaCorriente: 2, saldo: 5000, saldoFavor: 0 });
   }
 
   it('rechaza la devolución si el usuario no tiene empleado asociado (RNF-05)', async () => {
     const sinEmpleado: UsuarioAutenticado = { ...VENDEDOR, idEmpleado: null };
 
     await expect(service.create(DTO_BASE, sinEmpleado)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('expone el cliente asociado en el historial de devoluciones', async () => {
+    mockDevolucionesRepo.findAndCount.mockResolvedValue([[
+      Object.assign(new Devolucion(), {
+        idDevolucion: 8,
+        fecha: new Date(),
+        cantidadDevuelta: 1,
+        motivo: 'No corresponde',
+        montoDevuelto: 1000,
+        aptoReingreso: true,
+        observaciones: null,
+        detalleVenta: {
+          venta: {
+            idVenta: 4,
+            numeroVenta: 'VTA-00000004',
+            fecha: new Date(),
+            cliente: {
+              idCliente: 6,
+              tipo: 'PERSONA',
+              telefono: null,
+              correo: null,
+              direccion: null,
+              persona: { nombre: 'Ana', apellido: 'Pérez', dni: '12345678', cuil: '20123456786' },
+              empresa: null,
+            },
+          },
+          producto: { idProducto: 2, sku: 'PROD-00002', nombre: 'Filtro' },
+        },
+        empleadoAutoriza: { idEmpleado: 9, legajo: 'VENTA-001' },
+        notaCredito: { idNotaCredito: 8, numero: 'NC-00008', monto: 1000 },
+      }),
+    ], 1]);
+
+    const result = await service.findAll({ buscar: 'Ana', page: 1, limit: 10 });
+
+    expect(mockDevolucionesRepo.findAndCount).toHaveBeenCalledWith({ buscar: 'Ana', page: 1, limit: 10 });
+    expect(result.data[0].cliente).toMatchObject({ idCliente: 6, nombreMostrar: 'Pérez, Ana' });
   });
 
   it('rechaza la devolución cuando pasaron más de 15 días desde la venta (RNF-10)', async () => {
@@ -183,13 +221,36 @@ describe('DevolucionesService', () => {
       tipo: TipoMovimientoCtaCorriente;
       monto: number;
       saldoPosterior: number;
+      saldoFavorPosterior: number;
     };
     expect(movimiento.tipo).toBe(TipoMovimientoCtaCorriente.NOTA_CREDITO);
     expect(movimiento.monto).toBe(2000);
     expect(movimiento.saldoPosterior).toBe(3000);
+    expect(movimiento.saldoFavorPosterior).toBe(0);
 
-    const cuentaGuardada = repos.get(CuentaCorriente)!.save.mock.calls[0][0] as { saldo: number };
+    const cuentaGuardada = repos.get(CuentaCorriente)!.save.mock.calls[0][0] as { saldo: number; saldoFavor: number };
     expect(cuentaGuardada.saldo).toBe(3000);
+    expect(cuentaGuardada.saldoFavor).toBe(0);
+  });
+
+  it('cancela la deuda y deja solo el excedente de la devolución como saldo a favor', async () => {
+    prepararVenta({ diasDesdeVenta: 1 });
+    queryBuilder.getOne.mockResolvedValue({ idCuentaCorriente: 2, saldo: 500, saldoFavor: 100 });
+
+    await service.create({ ...DTO_BASE, cantidad: 2 }, VENDEDOR);
+
+    const cuentaGuardada = repos.get(CuentaCorriente)!.save.mock.calls[0][0] as { saldo: number; saldoFavor: number };
+    expect(cuentaGuardada.saldo).toBe(0);
+    expect(cuentaGuardada.saldoFavor).toBe(1600);
+
+    const movimiento = repos.get(MovimientoCtaCorriente)!.create.mock.calls[0][0] as {
+      saldoPosterior: number;
+      saldoFavorPosterior: number;
+      descripcion: string;
+    };
+    expect(movimiento.saldoPosterior).toBe(0);
+    expect(movimiento.saldoFavorPosterior).toBe(1600);
+    expect(movimiento.descripcion).toContain('Aplicado a deuda: $500.00');
   });
 
   it('registra el empleado que autorizó y suma la cantidad devuelta al ítem (auditoría RNF-05)', async () => {

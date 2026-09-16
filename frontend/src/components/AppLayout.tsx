@@ -74,18 +74,32 @@ export function AppLayout() {
               </li>
 
               {esAdmin && (
-                <li className="pc-item">
-                  <NavLink
-                    to="/productos/nuevo"
-                    className={({ isActive }) => `pc-link ${isActive ? 'active' : ''}`}
-                    onClick={closeMobileNav}
-                  >
-                    <span className="pc-micon">
-                      <i className="ti ti-plus" />
-                    </span>
-                    <span className="pc-mtext">Nuevo Repuesto</span>
-                  </NavLink>
-                </li>
+                <>
+                  <li className="pc-item">
+                    <NavLink
+                      to="/productos/nuevo"
+                      className={({ isActive }) => `pc-link ${isActive ? 'active' : ''}`}
+                      onClick={closeMobileNav}
+                    >
+                      <span className="pc-micon">
+                        <i className="ti ti-plus" />
+                      </span>
+                      <span className="pc-mtext">Nuevo Repuesto</span>
+                    </NavLink>
+                  </li>
+                  <li className="pc-item">
+                    <NavLink
+                      to="/productos/catalogos"
+                      className={({ isActive }) => `pc-link ${isActive ? 'active' : ''}`}
+                      onClick={closeMobileNav}
+                    >
+                      <span className="pc-micon">
+                        <i className="ti ti-tags" />
+                      </span>
+                      <span className="pc-mtext">Categorías y Marcas</span>
+                    </NavLink>
+                  </li>
+                </>
               )}
 
               <li className="pc-item pc-caption">
@@ -121,14 +135,26 @@ export function AppLayout() {
 
               <li className="pc-item">
                 <NavLink
-                  to="/devoluciones/nueva"
+                  to="/devoluciones"
+                  end
                   className={({ isActive }) => `pc-link ${isActive ? 'active' : ''}`}
                   onClick={closeMobileNav}
                 >
                   <span className="pc-micon">
-                    <i className="ti ti-arrow-back-up" />
+                    <i className="ti ti-history" />
                   </span>
-                  <span className="pc-mtext">Devoluciones</span>
+                  <span className="pc-mtext">Historial de Devoluciones</span>
+                </NavLink>
+              </li>
+
+              <li className="pc-item">
+                <NavLink
+                  to="/devoluciones/nueva"
+                  className={({ isActive }) => `pc-link ${isActive ? 'active' : ''}`}
+                  onClick={closeMobileNav}
+                >
+                  <span className="pc-micon"><i className="ti ti-arrow-back-up" /></span>
+                  <span className="pc-mtext">Nueva Devolución</span>
                 </NavLink>
               </li>
 

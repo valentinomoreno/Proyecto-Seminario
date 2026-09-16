@@ -215,7 +215,11 @@ export function ClientesListPage() {
                         <span className={`badge ${cuentaActiva ? 'bg-light-success text-success' : cliente.estadoCuenta === 'INACTIVA' ? 'bg-light-warning text-warning' : 'bg-light-secondary text-secondary'}`}>
                           {cliente.estadoCuenta === 'SIN_CUENTA' ? 'Sin cuenta' : cliente.estadoCuenta === 'ACTIVA' ? 'Activa' : 'Inactiva'}
                         </span>
-                        {cuenta && <><div className="font-monospace small mt-1">{cuenta.numeroCuenta}</div><strong className="small">$ {cuenta.saldo.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</strong></>}
+                        {cuenta && <>
+                          <div className="font-monospace small mt-1">{cuenta.numeroCuenta}</div>
+                          <strong className="small d-block text-danger">Deuda: $ {Number(cuenta.deuda ?? 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</strong>
+                          <strong className="small d-block text-success">A favor: $ {Number(cuenta.saldoFavor ?? cuenta.saldo ?? 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</strong>
+                        </>}
                       </td>
                       <td className="text-end">
                         <div className="btn-group btn-group-sm">
@@ -228,7 +232,7 @@ export function ClientesListPage() {
                             </button>
                           )}
                           {esAdmin && cuentaActiva && (
-                            <button type="button" className="btn btn-outline-warning" disabled={Number(cuenta?.saldo) !== 0} onClick={() => setConfirmacion({ accion: 'BAJA_CUENTA', cliente })} title={Number(cuenta?.saldo) !== 0 ? 'La cuenta tiene saldo pendiente' : 'Dar de baja la cuenta'}>
+                            <button type="button" className="btn btn-outline-warning" disabled={Number(cuenta?.deuda ?? 0) !== 0 || Number(cuenta?.saldoFavor ?? cuenta?.saldo ?? 0) !== 0} onClick={() => setConfirmacion({ accion: 'BAJA_CUENTA', cliente })} title={Number(cuenta?.deuda ?? 0) !== 0 || Number(cuenta?.saldoFavor ?? cuenta?.saldo ?? 0) !== 0 ? 'La cuenta tiene deuda o saldo a favor pendiente' : 'Dar de baja la cuenta'}>
                               <i className="ti ti-credit-card-off" />
                             </button>
                           )}

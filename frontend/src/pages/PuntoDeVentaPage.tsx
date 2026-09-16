@@ -4,6 +4,7 @@ import { clientesApi } from '../api/clientes.service';
 import { ventasApi } from '../api/ventas.service';
 import { ModalComprobante } from '../components/ModalComprobante';
 import { ModalNuevoCliente } from '../components/ModalNuevoCliente';
+import { ConfirmActionModal } from '../components/ConfirmActionModal';
 import { useCart } from '../context/useCart';
 import type { Cliente } from '../types/cliente.types';
 import type { ProductoCatalogo } from '../types/producto.types';
@@ -48,6 +49,7 @@ export function PuntoDeVentaPage() {
   const [procesando, setProcesando] = useState(false);
   const [errorVenta, setErrorVenta] = useState('');
   const [ventaConfirmada, setVentaConfirmada] = useState<VentaResponse | null>(null);
+  const [confirmacionVisible, setConfirmacionVisible] = useState(false);
 
   // Búsqueda remota de clientes con debounce para no limitar el POS a la primera página.
   useEffect(() => {
@@ -93,7 +95,7 @@ export function PuntoDeVentaPage() {
     }
   }, [clienteSeleccionado]);
 
-  async function handleConfirmarVenta() {
+  function solicitarConfirmacionVenta() {
     if (!clienteSeleccionado) {
       setErrorVenta('Por favor seleccione un cliente para la venta.');
       return;
@@ -104,6 +106,14 @@ export function PuntoDeVentaPage() {
     }
 
     setErrorVenta('');
+    setConfirmacionVisible(true);
+  }
+
+  async function handleConfirmarVenta() {
+    if (!clienteSeleccionado || items.length === 0) return;
+
+    setErrorVenta('');
+    setConfirmacionVisible(false);
     setProcesando(true);
 
     try {
@@ -344,7 +354,8 @@ export function PuntoDeVentaPage() {
                       <span className="text-muted">Cuenta Corriente:</span>
                       {tieneCuentaActiva(clienteSeleccionado) ? (
                         <span className="text-success fw-bold">
-                          ✓ Activa · Saldo adeudado: ${Number(clienteSeleccionado.cuentaCorriente?.saldo ?? 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                          ✓ Activa · Deuda: ${Number(clienteSeleccionado.cuentaCorriente?.deuda ?? 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                          {' · '}A favor: ${Number(clienteSeleccionado.cuentaCorriente?.saldoFavor ?? clienteSeleccionado.cuentaCorriente?.saldo ?? 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                         </span>
                       ) : (
                         <span className="text-danger">✗ No habilitada</span>
@@ -501,7 +512,7 @@ export function PuntoDeVentaPage() {
                 type="button"
                 className="btn btn-success btn-lg w-100 fw-bold d-flex justify-content-center align-items-center gap-2"
                 disabled={procesando || items.length === 0 || !clienteSeleccionado}
-                onClick={handleConfirmarVenta}
+                onClick={solicitarConfirmacionVenta}
               >
                 {procesando ? (
                   <>
@@ -530,6 +541,26 @@ export function PuntoDeVentaPage() {
           }}
         />
       )}
+
+      <ConfirmActionModal
+        open={confirmacionVisible}
+        title="¿Confirmar la venta?"
+        message={(
+          <div>
+            <p className="mb-2">Se registrará la venta para <strong>{clienteSeleccionado?.nombreMostrar}</strong>.</p>
+            <div className="d-flex justify-content-between border rounded p-3 bg-light">
+              <span>{modalidadPago === 'CUENTA_CORRIENTE' ? 'Cargo a cuenta corriente' : 'Total a cobrar'}</span>
+              <strong>$ {total.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</strong>
+            </div>
+            <small className="text-muted d-block mt-2">Una vez confirmada se descontará el stock y se emitirá el comprobante.</small>
+          </div>
+        )}
+        confirmLabel="Sí, confirmar y facturar"
+        confirmVariant="success"
+        processing={procesando}
+        onCancel={() => setConfirmacionVisible(false)}
+        onConfirm={() => void handleConfirmarVenta()}
+      />
 
       {/* MODAL COMPROBANTE GENERADO */}
       {ventaConfirmada && (

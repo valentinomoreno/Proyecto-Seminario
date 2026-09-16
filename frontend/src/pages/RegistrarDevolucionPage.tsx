@@ -1,6 +1,7 @@
 import { type FormEvent, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, getApiErrorMessage } from '../api/axios.instance';
+import { ConfirmActionModal } from '../components/ConfirmActionModal';
 import type { Devolucion, DevolucionPayload } from '../types/devolucion.types';
 import type { DetalleVentaResponse, VentaResponse } from '../types/venta.types';
 import { documentoCliente, nombreCliente } from '../utils/cliente';
@@ -26,6 +27,7 @@ export function RegistrarDevolucionPage() {
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
   const [devolucion, setDevolucion] = useState<Devolucion | null>(null);
+  const [confirmacionVisible, setConfirmacionVisible] = useState(false);
 
   const dias = useMemo(() => (venta ? diasTranscurridos(venta.fecha) : 0), [venta]);
   const plazoVencido = Boolean(venta) && dias > PLAZO_DEVOLUCION_DIAS;
@@ -89,7 +91,7 @@ export function RegistrarDevolucionPage() {
     setError('');
   }
 
-  async function submit(event: FormEvent) {
+  function solicitarConfirmacion(event: FormEvent) {
     event.preventDefault();
     setError('');
     if (!detalleSeleccionado) { setError('Seleccioná el ítem que se devuelve.'); return; }
@@ -100,6 +102,12 @@ export function RegistrarDevolucionPage() {
     if (!motivo.trim()) { setError('El motivo de la devolución es obligatorio.'); return; }
     if (plazoVencido) { setError('El plazo de 15 días para devolver esta venta ya venció.'); return; }
 
+    setConfirmacionVisible(true);
+  }
+
+  async function confirmarDevolucion() {
+    if (!detalleSeleccionado || !cantidadValida || plazoVencido) return;
+    setConfirmacionVisible(false);
     setGuardando(true);
     const payload: DevolucionPayload = {
       idVentaDetalle: detalleSeleccionado.idDetalleVenta,
@@ -246,7 +254,7 @@ export function RegistrarDevolucionPage() {
           </div>
 
           {venta && (
-            <form onSubmit={(event) => void submit(event)}>
+            <form onSubmit={solicitarConfirmacion}>
               <div className="row g-4">
                 <div className="col-lg-8">
                   {/* DATOS DE LA VENTA + PLAZO */}
@@ -502,6 +510,26 @@ export function RegistrarDevolucionPage() {
           )}
         </>
       )}
+
+      <ConfirmActionModal
+        open={confirmacionVisible}
+        title="¿Confirmar la devolución?"
+        message={(
+          <div>
+            <p>Se devolverán <strong>{cantidadNumero} unidad(es)</strong> de <strong>{detalleSeleccionado?.producto.nombre}</strong>.</p>
+            <div className="d-flex justify-content-between border rounded p-3 bg-light">
+              <span>Nota de crédito a emitir</span>
+              <strong className="text-success">$ {formatearMonto(montoPrevisto)}</strong>
+            </div>
+            <small className="text-muted d-block mt-2">Esta operación actualizará la cuenta corriente y {aptoReingreso ? 'reingresará el producto al stock' : 'no reingresará el producto al stock'}.</small>
+          </div>
+        )}
+        confirmLabel="Sí, registrar devolución"
+        confirmVariant="primary"
+        processing={guardando}
+        onCancel={() => setConfirmacionVisible(false)}
+        onConfirm={() => void confirmarDevolucion()}
+      />
     </div>
   );
 }

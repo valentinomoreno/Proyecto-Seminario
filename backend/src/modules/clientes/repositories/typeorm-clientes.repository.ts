@@ -163,6 +163,7 @@ export class TypeOrmClientesRepository implements IClientesRepository {
     await manager.getRepository(CuentaCorriente).save(manager.getRepository(CuentaCorriente).create({
       numeroCuenta,
       saldo: 0,
+      saldoFavor: 0,
       limiteCredito,
       activa: true,
       fechaBaja: null,

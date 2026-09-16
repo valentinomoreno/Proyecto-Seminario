@@ -18,6 +18,7 @@ const decimalTransformer = {
 
 @Entity('cuentas_corrientes')
 @Check('CHK_cuenta_saldo_no_negativo', '"saldo" >= 0')
+@Check('CHK_cuenta_saldo_favor_no_negativo', '"saldo_favor" >= 0')
 @Check('CHK_cuenta_limite_no_negativo', '"limite_credito" >= 0')
 export class CuentaCorriente {
   @PrimaryGeneratedColumn({ name: 'id_cuenta_corriente' })
@@ -28,6 +29,9 @@ export class CuentaCorriente {
 
   @Column({ type: 'numeric', precision: 14, scale: 2, default: 0, transformer: decimalTransformer })
   saldo: number;
+
+  @Column({ name: 'saldo_favor', type: 'numeric', precision: 14, scale: 2, default: 0, transformer: decimalTransformer })
+  saldoFavor: number;
 
   @Column({ name: 'limite_credito', type: 'numeric', precision: 14, scale: 2, default: 0, transformer: decimalTransformer })
   limiteCredito: number;

@@ -125,7 +125,8 @@ export class ClientesService {
   private toResponse(cliente: Cliente) {
     const cuenta = cliente.cuentaCorriente;
     const limiteCredito = Number(cuenta?.limiteCredito) || 0;
-    const saldo = Number(cuenta?.saldo) || 0;
+    const deuda = Number(cuenta?.saldo) || 0;
+    const saldoFavor = Number(cuenta?.saldoFavor) || 0;
     const estadoCuenta = !cuenta ? 'SIN_CUENTA' : cuenta.activa ? 'ACTIVA' : 'INACTIVA';
     const nombreMostrar = cliente.tipo === TipoCliente.PERSONA
       ? `${cliente.persona?.apellido ?? ''}, ${cliente.persona?.nombre ?? ''}`.replace(/^,\s*/, '').trim()
@@ -160,9 +161,11 @@ export class ClientesService {
       cuentaCorriente: cuenta ? {
         idCuentaCorriente: cuenta.idCuentaCorriente,
         numeroCuenta: cuenta.numeroCuenta,
-        saldo,
+        saldo: saldoFavor,
+        deuda,
+        saldoFavor,
         limiteCredito,
-        creditoDisponible: Math.max(0, limiteCredito - saldo),
+        creditoDisponible: limiteCredito > 0 ? Math.max(0, limiteCredito - deuda) : null,
         estado: cuenta.activa ? 'ACTIVA' : 'INACTIVA',
       } : null,
     };

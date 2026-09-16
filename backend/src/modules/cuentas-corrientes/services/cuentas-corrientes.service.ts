@@ -64,6 +64,7 @@ export class CuentasCorrientesService {
         existing.activa = true;
         existing.fechaBaja = null;
         existing.saldo = 0;
+        existing.saldoFavor = 0;
         existing.limiteCredito = dto.limiteCredito ?? 0;
         await this.repository.save(existing);
         return this.toResponse(await this.requireCuenta(existing.idCuentaCorriente));
@@ -73,6 +74,7 @@ export class CuentasCorrientesService {
       const cuenta = this.repository.create({
         numeroCuenta,
         saldo: 0,
+        saldoFavor: 0,
         limiteCredito: dto.limiteCredito ?? 0,
         activa: true,
         fechaBaja: null,
@@ -139,6 +141,7 @@ export class CuentasCorrientesService {
           tipo: TipoMovimientoCtaCorriente.COBRO_CUENTA,
           monto,
           saldoPosterior,
+          saldoFavorPosterior: Number(cuenta.saldoFavor) || 0,
           venta: null,
           descripcion,
         }),
@@ -158,8 +161,8 @@ export class CuentasCorrientesService {
   async remove(id: number): Promise<void> {
     const cuenta = await this.requireCuenta(id);
     if (!cuenta.activa) throw new NotFoundException('Cuenta corriente no encontrada o inactiva.');
-    if (Number(cuenta.saldo) !== 0) {
-      throw new ConflictException('No se puede dar de baja una cuenta corriente con saldo distinto de cero.');
+    if (Number(cuenta.saldo) !== 0 || Number(cuenta.saldoFavor) !== 0) {
+      throw new ConflictException('No se puede dar de baja una cuenta con deuda o saldo a favor pendiente.');
     }
     cuenta.activa = false;
     cuenta.fechaBaja = new Date();
@@ -185,13 +188,16 @@ export class CuentasCorrientesService {
 
   private toResponse(cuenta: CuentaCorriente) {
     const limiteCredito = Number(cuenta.limiteCredito) || 0;
-    const saldo = Number(cuenta.saldo) || 0;
+    const deuda = Number(cuenta.saldo) || 0;
+    const saldoFavor = Number(cuenta.saldoFavor) || 0;
     return {
       idCuentaCorriente: cuenta.idCuentaCorriente,
       numeroCuenta: cuenta.numeroCuenta,
-      saldo,
+      saldo: saldoFavor,
+      deuda,
+      saldoFavor,
       limiteCredito,
-      creditoDisponible: Math.max(0, limiteCredito - saldo),
+      creditoDisponible: limiteCredito > 0 ? Math.max(0, limiteCredito - deuda) : null,
       estado: cuenta.activa ? 'ACTIVA' : 'INACTIVA',
       fechaAlta: cuenta.fechaAlta,
       fechaBaja: cuenta.fechaBaja,
@@ -205,6 +211,8 @@ export class CuentasCorrientesService {
       tipo: movimiento.tipo,
       monto: Number(movimiento.monto),
       saldoPosterior: Number(movimiento.saldoPosterior),
+      deudaPosterior: Number(movimiento.saldoPosterior),
+      saldoFavorPosterior: Number(movimiento.saldoFavorPosterior) || 0,
       fecha: movimiento.fecha,
       idVenta: movimiento.venta?.idVenta ?? null,
       observaciones: movimiento.descripcion,

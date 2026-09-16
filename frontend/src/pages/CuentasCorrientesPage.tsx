@@ -29,7 +29,7 @@ export function CuentasCorrientesPage() {
   }, [page]);
 
   const deudaTotal = useMemo(
-    () => cuentas.reduce((acumulado, cuenta) => acumulado + Math.max(Number(cuenta.saldo ?? 0), 0), 0),
+    () => cuentas.reduce((acumulado, cuenta) => acumulado + Math.max(Number(cuenta.deuda ?? 0), 0), 0),
     [cuentas],
   );
 
@@ -85,7 +85,7 @@ export function CuentasCorrientesPage() {
                   <th>Cliente</th>
                   <th>Contacto</th>
                   <th>Último movimiento</th>
-                  <th>Saldo</th>
+                  <th>Deuda / Saldo a favor</th>
                   <th style={{ width: '140px' }} className="text-end">Acciones</th>
                 </tr>
               </thead>
@@ -107,8 +107,9 @@ export function CuentasCorrientesPage() {
                   </tr>
                 )}
                 {!cargando && cuentas.map((cuenta) => {
-                  const saldo = Number(cuenta.saldo ?? 0);
-                  const conDeuda = saldo > 0;
+                  const deuda = Number(cuenta.deuda ?? 0);
+                  const saldoFavor = Number(cuenta.saldoFavor ?? cuenta.saldo ?? 0);
+                  const conDeuda = deuda > 0;
                   return (
                     <tr key={cuenta.idCuentaCorriente}>
                       <td>
@@ -127,12 +128,15 @@ export function CuentasCorrientesPage() {
                       <td className="small text-muted">{formatearFecha(cuenta.fechaUltimoMovimiento)}</td>
                       <td>
                         <span className={`fs-6 fw-bold font-monospace ${conDeuda ? 'text-danger' : 'text-success'}`}>
-                          $ {formatearMonto(saldo)}
+                          Deuda: $ {formatearMonto(deuda)}
                         </span>
                         <div>
                           <span className={`badge ${conDeuda ? 'bg-light-danger text-danger' : 'bg-light-success text-success'}`}>
                             {conDeuda ? 'Con deuda' : 'Al día'}
                           </span>
+                        </div>
+                        <div className="small text-success fw-semibold mt-1">
+                          A favor: $ {formatearMonto(saldoFavor)}
                         </div>
                       </td>
                       <td className="text-end">

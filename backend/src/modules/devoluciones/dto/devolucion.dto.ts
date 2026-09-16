@@ -26,6 +26,16 @@ export class CreateDevolucionDto {
 
 export class QueryDevolucionesDto {
   @IsOptional()
+  @IsString()
+  buscar?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @IsPositive()
+  clienteId?: number;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)

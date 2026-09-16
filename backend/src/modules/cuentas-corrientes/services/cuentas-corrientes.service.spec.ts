@@ -145,6 +145,7 @@ describe('CuentasCorrientesService', () => {
         idCuentaCorriente: 3,
         numeroCuenta: 'CC-000003',
         saldo,
+        saldoFavor: 0,
         activa: true,
         fechaAlta: new Date(),
         fechaBaja: null,
@@ -170,7 +171,7 @@ describe('CuentasCorrientesService', () => {
       const result = await service.findHistorialByCliente(7);
 
       expect(movimientosRepository.findByCuenta).toHaveBeenCalledWith(3);
-      expect(result.cuenta).toMatchObject({ idCuentaCorriente: 3, saldo: 1500 });
+      expect(result.cuenta).toMatchObject({ idCuentaCorriente: 3, deuda: 1500, saldo: 0, saldoFavor: 0 });
       expect(result.movimientos).toHaveLength(1);
       expect(result.movimientos[0]).toMatchObject({ tipo: TipoMovimientoCtaCorriente.IMPUTACION_VENTA, monto: 1500 });
     });

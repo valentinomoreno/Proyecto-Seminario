@@ -20,6 +20,7 @@ const decimalTransformer = {
 @Entity('movimientos_cta_cte')
 @Check('CHK_mov_cta_monto', '"monto" > 0')
 @Check('CHK_mov_cta_saldo', '"saldo_posterior" >= 0')
+@Check('CHK_mov_cta_saldo_favor', '"saldo_favor_posterior" >= 0')
 @Index('IDX_mov_cta_cuenta_fecha', ['cuentaCorriente', 'fecha'])
 export class MovimientoCtaCorriente {
   @PrimaryGeneratedColumn({ name: 'id_movimiento_cta_cte' })
@@ -41,6 +42,9 @@ export class MovimientoCtaCorriente {
 
   @Column({ name: 'saldo_posterior', type: 'numeric', precision: 14, scale: 2, transformer: decimalTransformer })
   saldoPosterior: number;
+
+  @Column({ name: 'saldo_favor_posterior', type: 'numeric', precision: 14, scale: 2, default: 0, transformer: decimalTransformer })
+  saldoFavorPosterior: number;
 
   @CreateDateColumn({ type: 'timestamptz' })
   fecha: Date;

@@ -12,6 +12,7 @@ describe('CategoriasService with Repository (DIP)', () => {
     mockCategoriasRepo = {
       findAll: jest.fn(),
       findById: jest.fn(),
+      findByIds: jest.fn(),
       create: jest.fn(),
       save: jest.fn(),
       softRemove: jest.fn(),

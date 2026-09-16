@@ -1,4 +1,5 @@
 import type { VentaResponse } from './venta.types';
+import type { Cliente } from './cliente.types';
 
 export interface NotaCredito {
   idNotaCredito: number;
@@ -29,6 +30,8 @@ export interface Devolucion {
   motivo: string;
   montoDevuelto: number;
   aptoReingreso: boolean;
+  observaciones?: string | null;
+  cliente: Pick<Cliente, 'idCliente' | 'tipo' | 'nombreMostrar' | 'contacto' | 'persona' | 'empresa'>;
   venta: DevolucionVenta;
   producto: DevolucionProducto;
   empleadoAutoriza: DevolucionEmpleado;

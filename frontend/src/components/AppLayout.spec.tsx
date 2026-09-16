@@ -42,6 +42,7 @@ describe('AppLayout', () => {
   it('muestra Nuevo Repuesto sin el badge Admin redundante', () => {
     renderLayout();
     expect(screen.getByText('Nuevo Repuesto')).toBeInTheDocument();
+    expect(screen.getByText('Categorías y Marcas')).toBeInTheDocument();
     expect(screen.queryByText('Admin')).not.toBeInTheDocument();
   });
 
@@ -50,5 +51,7 @@ describe('AppLayout', () => {
     expect(screen.queryByText('Punto de Venta (POS)')).not.toBeInTheDocument();
     expect(screen.getByText('Nueva Venta')).toBeInTheDocument();
     expect(screen.getByText('Historial de Ventas')).toBeInTheDocument();
+    expect(screen.getByText('Historial de Devoluciones')).toBeInTheDocument();
+    expect(screen.getByText('Nueva Devolución')).toBeInTheDocument();
   });
 });
