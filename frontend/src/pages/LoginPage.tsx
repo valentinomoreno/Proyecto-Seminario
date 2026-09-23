@@ -9,22 +9,31 @@ export function LoginPage() {
   const [mostrarPassword, setMostrarPassword] = useState(false);
   const [error, setError] = useState('');
   const [enviando, setEnviando] = useState(false);
-  const { autenticado, login } = useAuth();
+  const { autenticado, usuario, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
-    if (autenticado) navigate('/catalogo', { replace: true });
-  }, [autenticado, navigate]);
+    if (autenticado && usuario) {
+      const defaultDest = usuario.rol === 'ADMINISTRADOR' ? '/dashboard' : '/ventas/nueva';
+      navigate(defaultDest, { replace: true });
+    }
+  }, [autenticado, usuario, navigate]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError('');
     setEnviando(true);
     try {
-      await login(nombre.trim(), contrasena);
+      const loggedUser = await login(nombre.trim(), contrasena);
       const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
-      navigate(from ?? '/catalogo', { replace: true });
+      const defaultDest = loggedUser.rol === 'ADMINISTRADOR' ? '/dashboard' : '/ventas/nueva';
+      const adminOnlyPaths = ['/dashboard', '/stock/alertas', '/productos/nuevo', '/productos/catalogos'];
+      const targetPath =
+        from && from !== '/login' && !(loggedUser.rol !== 'ADMINISTRADOR' && adminOnlyPaths.some((p) => from.startsWith(p)))
+          ? from
+          : defaultDest;
+      navigate(targetPath, { replace: true });
     } catch (requestError) {
       setError(getApiErrorMessage(requestError));
     } finally {
@@ -39,29 +48,12 @@ export function LoginPage() {
   }
 
   return (
-    <div className="auth-main datta-auth-bg">
+    <div className="auth-main">
       <div className="auth-wrapper v1">
         <div className="auth-form">
           <div className="position-relative">
-            {/* SHAPES ANIMADOS DE DATTA ABLE */}
-            <div className="auth-bg">
-              <span className="r" />
-              <span className="r s" />
-              <span className="r s" />
-              <span className="r" />
-            </div>
-
-            <div className="card my-5 shadow-lg border-0 rounded-4">
+            <div className="card my-5 shadow-sm border rounded-4">
               <div className="card-body p-4 p-sm-5">
-                {/* LOGO Y TÍTULO */}
-                <div className="text-center mb-4">
-                  <div className="d-inline-flex align-items-center gap-2 mb-2">
-                    <span className="brand-mark-datta large">AP</span>
-                  </div>
-                  <h4 className="fw-bold text-dark mb-1">Autopartes</h4>
-                  <p className="text-muted small mb-0">Sistema de Gestión de Repuestos · UTN</p>
-                </div>
-
                 {error && (
                   <div className="alert alert-danger d-flex align-items-center gap-2 py-2 px-3 small" role="alert">
                     <i className="ti ti-alert-circle fs-5" />
@@ -140,7 +132,7 @@ export function LoginPage() {
                   </button>
 
                   {/* ACCESO RÁPIDO DE PRUEBA */}
-                  <div className="p-3 bg-light rounded-3 mb-3 border">
+                  <div className="p-3 bg-light rounded-3 mb-0 border">
                     <span className="d-block text-muted small fw-bold text-uppercase mb-2 text-center" style={{ fontSize: '0.68rem', letterSpacing: '0.05em' }}>
                       Acceso rápido de prueba:
                     </span>
@@ -149,6 +141,7 @@ export function LoginPage() {
                         type="button"
                         className="btn btn-sm btn-outline-success flex-fill fw-bold"
                         onClick={() => prefillCredentials('admin', 'Admin_Seguro.2026!')}
+                        title="Ingreso como Administrador del sistema"
                       >
                         👑 Admin
                       </button>
@@ -156,17 +149,11 @@ export function LoginPage() {
                         type="button"
                         className="btn btn-sm btn-outline-primary flex-fill fw-bold"
                         onClick={() => prefillCredentials('vendedor', 'Vendedor_Seguro.2026!')}
+                        title="Ingreso como Vendedor de Mostrador"
                       >
-                        👤 Vendedor
+                        🛒 Vendedor
                       </button>
                     </div>
-                  </div>
-
-                  <div className="text-center">
-                    <span className="text-muted small" style={{ fontSize: '0.72rem' }}>
-                      <i className="ti ti-shield-check text-success me-1" />
-                      Autenticación segura JWT · Rate Limiting activo
-                    </span>
                   </div>
                 </form>
               </div>

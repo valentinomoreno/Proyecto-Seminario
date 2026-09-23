@@ -17,6 +17,16 @@ import { ProtectedRoute } from './routes/ProtectedRoute';
 import { DashboardPage } from './pages/DashboardPage';
 import { AlertasStockPage } from './pages/AlertasStockPage';
 
+import { useAuth } from './context/useAuth';
+
+function DefaultRedirect() {
+  const { usuario } = useAuth();
+  if (usuario?.rol === 'ADMINISTRADOR') {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <Navigate to="/ventas/nueva" replace />;
+}
+
 export default function App() {
   return (
     <CartProvider>
@@ -24,6 +34,7 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
+            <Route index element={<DefaultRedirect />} />
             <Route path="/ventas/nueva" element={<PuntoDeVentaPage />} />
             <Route path="/ventas" element={<VentasHistorialPage />} />
             <Route path="/pos" element={<Navigate to="/ventas/nueva" replace />} />
@@ -44,8 +55,9 @@ export default function App() {
             </Route>
           </Route>
         </Route>
-        <Route path="*" element={<Navigate to="/ventas/nueva" replace />} />
+        <Route path="*" element={<DefaultRedirect />} />
       </Routes>
     </CartProvider>
   );
 }
+

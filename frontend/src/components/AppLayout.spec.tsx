@@ -54,4 +54,24 @@ describe('AppLayout', () => {
     expect(screen.getByText('Historial de Devoluciones')).toBeInTheDocument();
     expect(screen.getByText('Nueva Devolución')).toBeInTheDocument();
   });
+
+  it('abre y cierra el menú de configuración al interactuar con el botón Configuración', async () => {
+    const user = userEvent.setup();
+    renderLayout();
+
+    // No debe haber avatar circular con letra o coronita en el header
+    expect(screen.queryByText('👑')).not.toBeInTheDocument();
+
+    const btnConfigurar = screen.getByRole('button', { name: /Configuración/i });
+    expect(btnConfigurar).toBeInTheDocument();
+
+    // Al inicio el popup no está visible
+    expect(screen.queryByText('Tema visual')).not.toBeInTheDocument();
+
+    // Al hacer clic se abre el modal de opciones
+    await user.click(btnConfigurar);
+    expect(screen.getByText('Tema visual')).toBeInTheDocument();
+    expect(screen.getByText('Datos de la sesión')).toBeInTheDocument();
+  });
 });
+
