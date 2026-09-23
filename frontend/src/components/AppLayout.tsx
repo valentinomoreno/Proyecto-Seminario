@@ -43,6 +43,23 @@ export function AppLayout() {
           {/* MENU LIST */}
           <div className="navbar-content">
             <ul className="pc-navbar">
+              {esAdmin && (
+                <>
+                  <li className="pc-item pc-caption">
+                    <label>ADMINISTRACIÓN</label>
+                  </li>
+                  <li className="pc-item">
+                    <NavLink
+                      to="/dashboard"
+                      className={({ isActive }) => `pc-link ${isActive ? 'active' : ''}`}
+                      onClick={closeMobileNav}
+                    >
+                      <span className="pc-micon"><i className="ti ti-layout-dashboard" /></span>
+                      <span className="pc-mtext">Dashboard</span>
+                    </NavLink>
+                  </li>
+                </>
+              )}
               <li className="pc-item pc-caption">
                 <label>INVENTARIO & VENTAS</label>
               </li>
@@ -75,6 +92,18 @@ export function AppLayout() {
 
               {esAdmin && (
                 <>
+                  <li className="pc-item">
+                    <NavLink
+                      to="/stock/alertas"
+                      className={({ isActive }) => `pc-link ${isActive ? 'active' : ''}`}
+                      onClick={closeMobileNav}
+                    >
+                      <span className="pc-micon">
+                        <i className="ti ti-alert-triangle" />
+                      </span>
+                      <span className="pc-mtext">Alertas de Stock</span>
+                    </NavLink>
+                  </li>
                   <li className="pc-item">
                     <NavLink
                       to="/productos/nuevo"

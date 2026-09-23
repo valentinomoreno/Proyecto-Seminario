@@ -5,6 +5,7 @@ import { DepositosController } from './controllers/depositos.controller';
 import { EstantesController } from './controllers/estantes.controller';
 import { MarcasController } from './controllers/marcas.controller';
 import { ProductosController } from './controllers/productos.controller';
+import { AlertasStockController } from './controllers/alertas-stock.controller';
 import { SectoresController } from './controllers/sectores.controller';
 import { Categoria } from './entities/categoria.entity';
 import { Deposito } from './entities/deposito.entity';
@@ -29,12 +30,15 @@ import { DepositosService } from './services/depositos.service';
 import { EstantesService } from './services/estantes.service';
 import { MarcasService } from './services/marcas.service';
 import { ProductosService } from './services/productos.service';
+import { AlertasStockService } from './services/alertas-stock.service';
+import { ImportacionProductosService } from './services/importacion-productos.service';
 import { SectoresService } from './services/sectores.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Producto, Categoria, Marca, Deposito, Sector, Estante])],
   controllers: [
     ProductosController,
+    AlertasStockController,
     CategoriasController,
     MarcasController,
     DepositosController,
@@ -69,6 +73,8 @@ import { SectoresService } from './services/sectores.service';
     },
     // Services
     ProductosService,
+    AlertasStockService,
+    ImportacionProductosService,
     CategoriasService,
     MarcasService,
     DepositosService,

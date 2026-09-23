@@ -3,6 +3,7 @@ import type { ClienteEmpresa, ClientePersona, CondicionIva, TipoCliente } from '
 export type ModalidadPago = 'CONTADO' | 'CUENTA_CORRIENTE';
 export type MetodoCobro =
   | 'EFECTIVO'
+  | 'MERCADO_PAGO'
   | 'TARJETA_CREDITO'
   | 'TARJETA_DEBITO'
   | 'TRANSFERENCIA';

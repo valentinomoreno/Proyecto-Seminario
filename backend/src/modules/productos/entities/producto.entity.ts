@@ -11,6 +11,9 @@ const decimalTransformer = {
 @Entity('productos')
 @Check('CHK_producto_stock', '"stock" >= 0')
 @Check('CHK_producto_precio', '"precio_unitario" > 0')
+@Check('CHK_producto_precio_costo', '"precio_costo" IS NULL OR "precio_costo" >= 0')
+@Check('CHK_producto_stock_minimo', '"stock_minimo" >= 0')
+@Check('CHK_producto_punto_pedido', '"punto_pedido" >= "stock_minimo"')
 export class Producto {
   @PrimaryGeneratedColumn({ name: 'id_producto' })
   idProducto: number;
@@ -29,8 +32,24 @@ export class Producto {
   @Column({ type: 'integer', default: 0 })
   stock: number;
 
+  @Column({ name: 'stock_minimo', type: 'integer', default: 0 })
+  stockMinimo: number;
+
+  @Column({ name: 'punto_pedido', type: 'integer', default: 0 })
+  puntoPedido: number;
+
   @Column({ name: 'precio_unitario', type: 'numeric', precision: 12, scale: 2, transformer: decimalTransformer })
   precioUnitario: number;
+
+  @Column({
+    name: 'precio_costo',
+    type: 'numeric',
+    precision: 12,
+    scale: 2,
+    nullable: true,
+    transformer: decimalTransformer,
+  })
+  precioCosto: number | null;
 
   @Column({ name: 'imagen_url', type: 'varchar', length: 255, nullable: true })
   imagenUrl: string | null;

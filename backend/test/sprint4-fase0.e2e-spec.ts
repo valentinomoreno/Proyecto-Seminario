@@ -41,7 +41,7 @@ describe('Sprint 4 – Fase 0: Clientes, Ventas y Cuenta Corriente (e2e)', () =>
     if (idVenta) {
       await dataSource.query('DELETE FROM movimientos_cta_cte WHERE id_venta = $1', [idVenta]);
       await dataSource.query('DELETE FROM movimientos_stock WHERE id_venta = $1', [idVenta]);
-      await dataSource.query('DELETE FROM ventas_detalle WHERE id_venta = $1', [idVenta]);
+      await dataSource.query('DELETE FROM detalles_venta WHERE id_venta = $1', [idVenta]);
       await dataSource.query('DELETE FROM ventas WHERE id_venta = $1', [idVenta]);
     }
     if (idCliente) await limpiarCliente(dataSource, idCliente);
@@ -88,13 +88,13 @@ describe('Sprint 4 – Fase 0: Clientes, Ventas y Cuenta Corriente (e2e)', () =>
     const venta = await request(app.getHttpServer())
       .post('/ventas')
       .auth(adminToken, { type: 'bearer' })
-      .send({ idCliente, items: [{ idProducto, cantidad: CANTIDAD_VENDIDA }] })
+      .send({ idCliente, modalidadPago: 'CUENTA_CORRIENTE', items: [{ idProducto, cantidad: CANTIDAD_VENDIDA }] })
       .expect(201);
 
     idVenta = venta.body.idVenta as number;
-    expect(venta.body.numeroComprobante).toMatch(/^V-\d{5}$/);
+    expect(venta.body.numeroVenta).toMatch(/^VTA-\d{8}$/);
     expect(Number(venta.body.total)).toBe(TOTAL_ESPERADO);
-    expect(venta.body.detalles[0].cantidadDisponibleDevolucion).toBe(CANTIDAD_VENDIDA);
+    expect(venta.body.detalles[0].cantidad - venta.body.detalles[0].cantidadDevuelta).toBe(CANTIDAD_VENDIDA);
 
     const productoLuego = await request(app.getHttpServer())
       .get(`/productos/${idProducto}`)
@@ -102,20 +102,20 @@ describe('Sprint 4 – Fase 0: Clientes, Ventas y Cuenta Corriente (e2e)', () =>
       .expect(200);
     expect(productoLuego.body.stock).toBe(STOCK_INICIAL - CANTIDAD_VENDIDA);
 
-    const movimientosStock = await dataSource.query<Array<{ tipo: string; cantidad: number; stock_resultante: number }>>(
-      'SELECT tipo, cantidad, stock_resultante FROM movimientos_stock WHERE id_venta = $1',
+    const movimientosStock = await dataSource.query<Array<{ tipo: string; cantidad: number; stock_posterior: number }>>(
+      'SELECT tipo, cantidad, stock_posterior FROM movimientos_stock WHERE id_venta = $1',
       [idVenta],
     );
     expect(movimientosStock).toHaveLength(1);
-    expect(movimientosStock[0].tipo).toBe('VENTA');
+    expect(movimientosStock[0].tipo).toBe('SALIDA_VENTA');
     expect(movimientosStock[0].cantidad).toBe(CANTIDAD_VENDIDA);
-    expect(movimientosStock[0].stock_resultante).toBe(STOCK_INICIAL - CANTIDAD_VENDIDA);
+    expect(movimientosStock[0].stock_posterior).toBe(STOCK_INICIAL - CANTIDAD_VENDIDA);
 
     const cuenta = await request(app.getHttpServer())
       .get(`/cuentas-corrientes/cliente/${idCliente}/historial`)
       .auth(adminToken, { type: 'bearer' })
       .expect(200);
-    expect(Number(cuenta.body.cuenta.saldo)).toBe(TOTAL_ESPERADO);
+    expect(Number(cuenta.body.cuenta.deuda)).toBe(TOTAL_ESPERADO);
     const movimientos = cuenta.body.movimientos as Array<{ tipo: string; monto: number }>;
     const imputacion = movimientos.find((m) => m.tipo === 'IMPUTACION_VENTA');
     expect(imputacion).toBeDefined();
@@ -129,17 +129,18 @@ describe('Sprint 4 – Fase 0: Clientes, Ventas y Cuenta Corriente (e2e)', () =>
       .expect(200);
 
     const porComprobante = await request(app.getHttpServer())
-      .get(`/ventas/comprobante/${venta.body.numeroComprobante}`)
+      .get('/ventas')
+      .query({ buscar: venta.body.numeroVenta })
       .auth(adminToken, { type: 'bearer' })
       .expect(200);
-    expect(porComprobante.body.idVenta).toBe(idVenta);
+    expect(porComprobante.body.data[0].idVenta).toBe(idVenta);
   });
 
   it('rechaza una venta con stock insuficiente', async () => {
     await request(app.getHttpServer())
       .post('/ventas')
       .auth(adminToken, { type: 'bearer' })
-      .send({ idCliente, items: [{ idProducto, cantidad: STOCK_INICIAL * 10 }] })
+      .send({ idCliente, modalidadPago: 'CUENTA_CORRIENTE', items: [{ idProducto, cantidad: STOCK_INICIAL * 10 }] })
       .expect(400);
   });
 
@@ -155,11 +156,11 @@ describe('Sprint 4 – Fase 0: Clientes, Ventas y Cuenta Corriente (e2e)', () =>
       .get(`/cuentas-corrientes/cliente/${idCliente}/historial`)
       .auth(adminToken, { type: 'bearer' })
       .expect(200);
-    expect(Number(cuenta.body.cuenta.saldo)).toBe(TOTAL_ESPERADO - pago);
+    expect(Number(cuenta.body.cuenta.deuda)).toBe(TOTAL_ESPERADO - pago);
 
     const movimientos = cuenta.body.movimientos as Array<{ tipo: string; monto: number }>;
-    const movimientoPago = movimientos.find((m) => m.tipo === 'PAGO');
-    expect(Number(movimientoPago?.monto)).toBe(-pago);
+    const movimientoPago = movimientos.find((m) => m.tipo === 'COBRO_CUENTA');
+    expect(Number(movimientoPago?.monto)).toBe(pago);
   });
 
   it('rechaza un pago mayor al saldo adeudado', async () => {

@@ -76,10 +76,14 @@ export function CatalogoPage() {
             </div>
             <div className="col-md-4 text-md-end mt-3 mt-md-0">
               {esAdmin && (
-                <Link to="/productos/nuevo" className="btn btn-primary d-inline-flex align-items-center gap-2 shadow-sm">
-                  <i className="ti ti-plus" />
-                  <span>Nuevo repuesto</span>
-                </Link>
+                <div className="d-flex justify-content-md-end gap-2">
+                  <Link to="/stock/alertas" className="btn btn-outline-warning d-inline-flex align-items-center gap-2">
+                    <i className="ti ti-alert-triangle" /><span>Alertas</span>
+                  </Link>
+                  <Link to="/productos/nuevo" className="btn btn-primary d-inline-flex align-items-center gap-2 shadow-sm">
+                    <i className="ti ti-plus" /><span>Nuevo repuesto</span>
+                  </Link>
+                </div>
               )}
             </div>
           </div>
@@ -196,14 +200,15 @@ export function CatalogoPage() {
                       </td>
                       <td>
                         <span className={`badge ${
-                          producto.stock === 0
+                          producto.stock <= producto.stockMinimo
                             ? 'bg-light-danger text-danger'
-                            : producto.stock < 5
+                            : producto.stock <= producto.puntoPedido
                             ? 'bg-light-warning text-warning'
                             : 'bg-light-success text-success'
                         }`}>
                           {producto.stock} unidades
                         </span>
+                        <small className="d-block text-muted mt-1">Mín. {producto.stockMinimo} · Pedido {producto.puntoPedido}</small>
                       </td>
                       <td className="fw-bold text-dark font-monospace">
                         $ {producto.precioUnitario.toLocaleString('es-AR', { minimumFractionDigits: 2 })}

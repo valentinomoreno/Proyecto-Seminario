@@ -21,6 +21,7 @@ describe('CategoriasService with Repository (DIP)', () => {
     mockProductosRepo = {
       findAndCount: jest.fn(),
       findById: jest.fn(),
+      findBajoMinimo: jest.fn(),
       create: jest.fn(),
       save: jest.fn(),
       softRemove: jest.fn(),

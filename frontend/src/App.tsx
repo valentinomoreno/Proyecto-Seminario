@@ -14,6 +14,8 @@ import { PuntoDeVentaPage } from './pages/PuntoDeVentaPage';
 import { RegistrarDevolucionPage } from './pages/RegistrarDevolucionPage';
 import { VentasHistorialPage } from './pages/VentasHistorialPage';
 import { ProtectedRoute } from './routes/ProtectedRoute';
+import { DashboardPage } from './pages/DashboardPage';
+import { AlertasStockPage } from './pages/AlertasStockPage';
 
 export default function App() {
   return (
@@ -34,6 +36,8 @@ export default function App() {
             <Route path="/cuentas-corrientes" element={<CuentasCorrientesPage />} />
             <Route path="/cuentas-corrientes/:idCliente" element={<DetalleDeudaPage />} />
             <Route element={<ProtectedRoute roles={['ADMINISTRADOR']} />}>
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/stock/alertas" element={<AlertasStockPage />} />
               <Route path="/productos/catalogos" element={<CatalogosProductoPage />} />
               <Route path="/productos/nuevo" element={<FormProductoPage />} />
               <Route path="/productos/:id/editar" element={<FormProductoPage />} />

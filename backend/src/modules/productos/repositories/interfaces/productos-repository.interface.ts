@@ -6,6 +6,7 @@ export const PRODUCTOS_REPOSITORY = Symbol('PRODUCTOS_REPOSITORY');
 export interface IProductosRepository {
   findAndCount(query: QueryProductosDto): Promise<[Producto[], number]>;
   findById(id: number): Promise<Producto | null>;
+  findBajoMinimo(): Promise<Producto[]>;
   create(data: Partial<Producto>): Producto;
   save(producto: Producto): Promise<Producto>;
   softRemove(producto: Producto): Promise<Producto>;

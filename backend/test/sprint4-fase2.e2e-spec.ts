@@ -56,13 +56,13 @@ describe('Sprint 4 – Fase 2: procesos programados de cuenta corriente (e2e)', 
       .get(`/cuentas-corrientes/cliente/${idCliente}/historial`)
       .auth(adminToken, { type: 'bearer' })
       .expect(200);
-    expect(Number(cuenta.body.cuenta.saldo)).toBe(SALDO_CON_MORA);
+    expect(Number(cuenta.body.cuenta.deuda)).toBe(SALDO_CON_MORA);
 
-    const movimientos = cuenta.body.movimientos as Array<{ tipo: string; monto: number; saldoResultante: number }>;
+    const movimientos = cuenta.body.movimientos as Array<{ tipo: string; monto: number; saldoPosterior: number }>;
     const mora = movimientos.find((m) => m.tipo === 'MORA');
     expect(mora).toBeDefined();
     expect(Number(mora?.monto)).toBe(10000);
-    expect(Number(mora?.saldoResultante)).toBe(SALDO_CON_MORA);
+    expect(Number(mora?.saldoPosterior)).toBe(SALDO_CON_MORA);
   });
 
   it('no vuelve a aplicar la mora si ya se aplicó en el mes corriente (idempotencia)', async () => {
@@ -75,7 +75,7 @@ describe('Sprint 4 – Fase 2: procesos programados de cuenta corriente (e2e)', 
       .get(`/cuentas-corrientes/cliente/${idCliente}/historial`)
       .auth(adminToken, { type: 'bearer' })
       .expect(200);
-    expect(Number(cuenta.body.cuenta.saldo)).toBe(SALDO_CON_MORA);
+    expect(Number(cuenta.body.cuenta.deuda)).toBe(SALDO_CON_MORA);
 
     const movimientos = cuenta.body.movimientos as Array<{ tipo: string }>;
     expect(movimientos.filter((m) => m.tipo === 'MORA')).toHaveLength(1);

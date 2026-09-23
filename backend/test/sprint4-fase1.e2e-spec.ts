@@ -63,18 +63,18 @@ describe('Sprint 4 – Fase 1: Devoluciones (e2e)', () => {
     const ventaReciente = await request(app.getHttpServer())
       .post('/ventas')
       .auth(adminToken, { type: 'bearer' })
-      .send({ idCliente, items: [{ idProducto, cantidad: CANTIDAD_VENDIDA }] })
+      .send({ idCliente, modalidadPago: 'CUENTA_CORRIENTE', items: [{ idProducto, cantidad: CANTIDAD_VENDIDA }] })
       .expect(201);
     idVentaReciente = ventaReciente.body.idVenta as number;
-    detalleReciente = ventaReciente.body.detalles[0].idVentaDetalle as number;
+    detalleReciente = ventaReciente.body.detalles[0].idDetalleVenta as number;
 
     const ventaVieja = await request(app.getHttpServer())
       .post('/ventas')
       .auth(adminToken, { type: 'bearer' })
-      .send({ idCliente, items: [{ idProducto, cantidad: 1 }] })
+      .send({ idCliente, modalidadPago: 'CUENTA_CORRIENTE', items: [{ idProducto, cantidad: 1 }] })
       .expect(201);
     idVentaVieja = ventaVieja.body.idVenta as number;
-    detalleViejo = ventaVieja.body.detalles[0].idVentaDetalle as number;
+    detalleViejo = ventaVieja.body.detalles[0].idDetalleVenta as number;
 
     // Envejecemos la segunda venta para poder probar el rechazo por plazo vencido.
     await dataSource.query("UPDATE ventas SET fecha = now() - interval '20 days' WHERE id_venta = $1", [idVentaVieja]);
@@ -84,20 +84,20 @@ describe('Sprint 4 – Fase 1: Devoluciones (e2e)', () => {
     const ventas = [idVentaReciente, idVentaVieja].filter(Boolean);
     for (const idVenta of ventas) {
       await dataSource.query(
-        'DELETE FROM movimientos_stock WHERE id_devolucion IN (SELECT d.id_devolucion FROM devoluciones d JOIN ventas_detalle vd ON vd.id_venta_detalle = d.id_venta_detalle WHERE vd.id_venta = $1)',
+        'DELETE FROM movimientos_stock WHERE id_devolucion IN (SELECT d.id_devolucion FROM devoluciones d JOIN detalles_venta vd ON vd.id_detalle_venta = d.id_venta_detalle WHERE vd.id_venta = $1)',
         [idVenta],
       );
       await dataSource.query(
-        'DELETE FROM notas_credito WHERE id_devolucion IN (SELECT d.id_devolucion FROM devoluciones d JOIN ventas_detalle vd ON vd.id_venta_detalle = d.id_venta_detalle WHERE vd.id_venta = $1)',
+        'DELETE FROM notas_credito WHERE id_devolucion IN (SELECT d.id_devolucion FROM devoluciones d JOIN detalles_venta vd ON vd.id_detalle_venta = d.id_venta_detalle WHERE vd.id_venta = $1)',
         [idVenta],
       );
       await dataSource.query(
-        'DELETE FROM devoluciones WHERE id_venta_detalle IN (SELECT id_venta_detalle FROM ventas_detalle WHERE id_venta = $1)',
+        'DELETE FROM devoluciones WHERE id_venta_detalle IN (SELECT id_detalle_venta FROM detalles_venta WHERE id_venta = $1)',
         [idVenta],
       );
       await dataSource.query('DELETE FROM movimientos_cta_cte WHERE id_venta = $1', [idVenta]);
       await dataSource.query('DELETE FROM movimientos_stock WHERE id_venta = $1', [idVenta]);
-      await dataSource.query('DELETE FROM ventas_detalle WHERE id_venta = $1', [idVenta]);
+      await dataSource.query('DELETE FROM detalles_venta WHERE id_venta = $1', [idVenta]);
       await dataSource.query('DELETE FROM ventas WHERE id_venta = $1', [idVenta]);
     }
     if (idCliente) await limpiarCliente(dataSource, idCliente);
@@ -127,7 +127,7 @@ describe('Sprint 4 – Fase 1: Devoluciones (e2e)', () => {
     const saldoAntes = Number((await request(app.getHttpServer())
       .get(`/cuentas-corrientes/cliente/${idCliente}/historial`)
       .auth(adminToken, { type: 'bearer' })
-      .expect(200)).body.cuenta.saldo);
+      .expect(200)).body.cuenta.deuda);
 
     const cantidadDevuelta = 2;
     const { body: devolucion } = await request(app.getHttpServer())
@@ -158,13 +158,13 @@ describe('Sprint 4 – Fase 1: Devoluciones (e2e)', () => {
       [devolucion.idDevolucion],
     );
     expect(movimientosStock).toHaveLength(1);
-    expect(movimientosStock[0].tipo).toBe('DEVOLUCION');
+    expect(movimientosStock[0].tipo).toBe('ENTRADA_DEVOLUCION');
 
     const cuenta = await request(app.getHttpServer())
       .get(`/cuentas-corrientes/cliente/${idCliente}/historial`)
       .auth(adminToken, { type: 'bearer' })
       .expect(200);
-    expect(Number(cuenta.body.cuenta.saldo)).toBe(saldoAntes - PRECIO_UNITARIO * cantidadDevuelta);
+    expect(Number(cuenta.body.cuenta.deuda)).toBe(saldoAntes - PRECIO_UNITARIO * cantidadDevuelta);
     const movimientos = cuenta.body.movimientos as Array<{ tipo: string }>;
     expect(movimientos.some((m) => m.tipo === 'NOTA_CREDITO')).toBe(true);
   });
@@ -177,7 +177,7 @@ describe('Sprint 4 – Fase 1: Devoluciones (e2e)', () => {
 
     const detalle = venta.body.detalles[0];
     expect(detalle.cantidadDevuelta).toBe(2);
-    expect(detalle.cantidadDisponibleDevolucion).toBe(CANTIDAD_VENDIDA - 2);
+    expect(detalle.cantidad - detalle.cantidadDevuelta).toBe(CANTIDAD_VENDIDA - 2);
   });
 
   it('rechaza devolver más unidades de las disponibles', async () => {

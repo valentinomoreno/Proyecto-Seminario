@@ -11,6 +11,7 @@ import {
   Post,
   Put,
   Query,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -26,6 +27,7 @@ import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { CreateProductoDto, QueryProductosDto, UpdateProductoDto } from '../dto/producto.dto';
 import { ProductosService } from '../services/productos.service';
+import { ImportacionProductosService } from '../services/importacion-productos.service';
 
 const UPLOADS_DEST = join(process.cwd(), 'uploads', 'productos');
 if (!existsSync(UPLOADS_DEST)) {
@@ -35,10 +37,42 @@ if (!existsSync(UPLOADS_DEST)) {
 @Controller('productos')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ProductosController {
-  constructor(private readonly service: ProductosService) {}
+  constructor(
+    private readonly service: ProductosService,
+    private readonly importacionService: ImportacionProductosService,
+  ) {}
 
   @Get()
   findAll(@Query() query: QueryProductosDto) { return this.service.findAll(query); }
+
+  @Get('importacion/plantilla')
+  @Roles(NombreRol.ADMINISTRADOR)
+  async descargarPlantilla(@Res() response: import('express').Response): Promise<void> {
+    const archivo = await this.importacionService.generarPlantilla();
+    response.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename="plantilla-importacion-productos.xlsx"',
+      'Content-Length': String(archivo.length),
+    });
+    response.send(archivo);
+  }
+
+  @Post('importar')
+  @Roles(NombreRol.ADMINISTRADOR)
+  @UseInterceptors(FileInterceptor('archivo', {
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      const extension = extname(file.originalname).toLowerCase();
+      if (!['.xlsx', '.csv'].includes(extension)) {
+        return cb(new BadRequestException('Solo se admiten archivos .xlsx o .csv.'), false);
+      }
+      cb(null, true);
+    },
+  }))
+  importar(@UploadedFile() file?: Express.Multer.File) {
+    if (!file) throw new BadRequestException('Debe seleccionar un archivo .xlsx o .csv.');
+    return this.importacionService.importar(file);
+  }
 
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) { return this.service.findOne(id); }

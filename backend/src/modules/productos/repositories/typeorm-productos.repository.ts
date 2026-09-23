@@ -52,6 +52,20 @@ export class TypeOrmProductosRepository implements IProductosRepository {
     });
   }
 
+  async findBajoMinimo(): Promise<Producto[]> {
+    return this.ormRepository
+      .createQueryBuilder('producto')
+      .leftJoinAndSelect('producto.categoria', 'categoria')
+      .leftJoinAndSelect('producto.marca', 'marca')
+      .leftJoinAndSelect('producto.estante', 'estante')
+      .leftJoinAndSelect('estante.sector', 'sector')
+      .leftJoinAndSelect('sector.deposito', 'deposito')
+      .where('producto.stock <= producto.stockMinimo')
+      .orderBy('categoria.nombre', 'ASC')
+      .addOrderBy('producto.nombre', 'ASC')
+      .getMany();
+  }
+
   create(data: Partial<Producto>): Producto {
     return this.ormRepository.create(data);
   }

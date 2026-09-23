@@ -36,7 +36,10 @@ export interface Producto {
   nombre: string;
   descripcion: string | null;
   stock: number;
+  stockMinimo: number;
+  puntoPedido: number;
   precioUnitario: number;
+  precioCosto: number | null;
   imagenUrl?: string | null;
   categoria: Categoria;
   marca: Marca;
@@ -56,7 +59,10 @@ export interface ProductoPayload {
   nombre: string;
   descripcion?: string | null;
   stock: number;
+  stockMinimo: number;
+  puntoPedido: number;
   precioUnitario: number;
+  precioCosto?: number | null;
   imagenUrl?: string | null;
   categoriaId: number;
   marcaId: number;
@@ -70,7 +76,16 @@ export interface ProductoCatalogo {
   descripcion: string | null;
   precioUnitario: number;
   stock: number;
+  stockMinimo?: number;
+  puntoPedido?: number;
   imagenUrl?: string | null;
   categoria?: { idCategoria: number; nombre: string };
   marca?: { idMarca: number; nombre: string };
+}
+
+export interface ResultadoImportacionProductos {
+  totalFilas: number;
+  importados: number;
+  conErrores: number;
+  errores: Array<{ fila: number; producto: string; errores: string[] }>;
 }

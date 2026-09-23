@@ -13,6 +13,7 @@ import { NotificacionesModule } from './modules/notificaciones/notificaciones.mo
 import { ProductosModule } from './modules/productos/productos.module';
 import { UsuariosModule } from './modules/usuarios/usuarios.module';
 import { VentasModule } from './modules/ventas/ventas.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { VentasModule } from './modules/ventas/ventas.module';
     VentasModule,
     DevolucionesModule,
     NotificacionesModule,
+    DashboardModule,
   ],
   controllers: [AppController],
 })

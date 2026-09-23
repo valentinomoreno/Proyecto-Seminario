@@ -463,6 +463,7 @@ export function PuntoDeVentaPage() {
                     onChange={(e) => setMetodoCobro(e.target.value as MetodoCobro)}
                   >
                     <option value="EFECTIVO">Efectivo</option>
+                    <option value="MERCADO_PAGO">Mercado Pago</option>
                     <option value="TARJETA_DEBITO">Tarjeta Débito</option>
                     <option value="TARJETA_CREDITO">Tarjeta Crédito</option>
                     <option value="TRANSFERENCIA">Transferencia Bancaria</option>

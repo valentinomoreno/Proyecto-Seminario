@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { throwFriendlyDatabaseError } from '../../../common/database/database-error.util';
 import { CreateProductoDto, QueryProductosDto, UpdateProductoDto } from '../dto/producto.dto';
 import { Producto } from '../entities/producto.entity';
@@ -51,6 +51,7 @@ export class ProductosService {
   }
 
   async create(dto: CreateProductoDto) {
+    this.validarNivelesStock(dto.stockMinimo ?? 0, dto.puntoPedido ?? 0);
     const references = await this.findReferences(dto.categoriaId, dto.marcaId, dto.estanteId);
     const sku = await this.repository.generateNextSku();
     const producto = this.repository.create({
@@ -58,7 +59,10 @@ export class ProductosService {
       nombre: dto.nombre.trim(),
       descripcion: dto.descripcion?.trim() || null,
       stock: dto.stock,
+      stockMinimo: dto.stockMinimo ?? 0,
+      puntoPedido: dto.puntoPedido ?? 0,
       precioUnitario: dto.precioUnitario,
+      precioCosto: dto.precioCosto ?? null,
       imagenUrl: dto.imagenUrl?.trim() || null,
       ...references,
     });
@@ -73,10 +77,18 @@ export class ProductosService {
     const producto = await this.repository.findById(id);
     if (!producto) throw new NotFoundException('Producto no encontrado.');
 
+    this.validarNivelesStock(
+      dto.stockMinimo ?? producto.stockMinimo,
+      dto.puntoPedido ?? producto.puntoPedido,
+    );
+
     if (dto.nombre !== undefined) producto.nombre = dto.nombre.trim();
     if (dto.descripcion !== undefined) producto.descripcion = dto.descripcion?.trim() || null;
     if (dto.stock !== undefined) producto.stock = dto.stock;
+    if (dto.stockMinimo !== undefined) producto.stockMinimo = dto.stockMinimo;
+    if (dto.puntoPedido !== undefined) producto.puntoPedido = dto.puntoPedido;
     if (dto.precioUnitario !== undefined) producto.precioUnitario = dto.precioUnitario;
+    if (dto.precioCosto !== undefined) producto.precioCosto = dto.precioCosto;
     if (dto.imagenUrl !== undefined) producto.imagenUrl = dto.imagenUrl?.trim() || null;
 
     if (dto.categoriaId !== undefined || dto.marcaId !== undefined || dto.estanteId !== undefined) {
@@ -101,6 +113,12 @@ export class ProductosService {
     await this.repository.softRemove(producto);
   }
 
+  private validarNivelesStock(stockMinimo: number, puntoPedido: number): void {
+    if (puntoPedido < stockMinimo) {
+      throw new BadRequestException('El punto de pedido debe ser mayor o igual que el stock mínimo.');
+    }
+  }
+
   private toResponse(producto: Producto) {
     return {
       idProducto: producto.idProducto,
@@ -108,7 +126,10 @@ export class ProductosService {
       nombre: producto.nombre,
       descripcion: producto.descripcion,
       stock: producto.stock,
+      stockMinimo: producto.stockMinimo,
+      puntoPedido: producto.puntoPedido,
       precioUnitario: producto.precioUnitario,
+      precioCosto: producto.precioCosto,
       imagenUrl: producto.imagenUrl ?? null,
       categoria: {
         idCategoria: producto.categoria.idCategoria,
