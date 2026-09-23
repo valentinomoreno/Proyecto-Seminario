@@ -95,9 +95,43 @@ body {
   font-size: 0.68rem !important;
   letter-spacing: 0.06em !important;
 }
+/* SUPRESIÓN TOTAL DE CUADRADOS/BARRAS PARÁSITAS EN SIDEBAR */
+.pc-sidebar .pc-item::before,
+.pc-sidebar .pc-item::after,
+.pc-sidebar .pc-item:before,
+.pc-sidebar .pc-item:after,
+.pc-sidebar .pc-link::before,
+.pc-sidebar .pc-link::after,
+.pc-sidebar .pc-link:before,
+.pc-sidebar .pc-link:after,
+.pc-sidebar .pc-navbar > .pc-item::before,
+.pc-sidebar .pc-navbar > .pc-item::after,
+.pc-sidebar .pc-navbar > .pc-item:before,
+.pc-sidebar .pc-navbar > .pc-item:after {
+  display: none !important;
+  content: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  background: transparent !important;
+  border: none !important;
+}
+
 .pc-sidebar .pc-link {
   color: #CBD5E1 !important;
+  border-left: none !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  border-radius: 8px !important;
   transition: all 0.15s ease !important;
+}
+.pc-sidebar .pc-link:focus,
+.pc-sidebar .pc-link:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border-left: none !important;
 }
 .pc-sidebar .pc-link .pc-micon,
 .pc-sidebar .pc-link .pc-micon i {
@@ -106,15 +140,18 @@ body {
 .pc-sidebar .pc-link:hover {
   background-color: rgba(255, 255, 255, 0.08) !important;
   color: #FFFFFF !important;
+  border-left: none !important;
 }
 .pc-sidebar .pc-link:hover .pc-micon,
 .pc-sidebar .pc-link:hover .pc-micon i {
   color: #FFFFFF !important;
 }
 .pc-sidebar .pc-link.active {
-  background: linear-gradient(90deg, rgba(37, 99, 235, 0.32) 0%, rgba(37, 99, 235, 0.12) 100%) !important;
+  background: rgba(37, 99, 235, 0.28) !important;
   color: #FFFFFF !important;
-  border-left: 3px solid #38BDF8 !important;
+  border: 1px solid rgba(56, 189, 248, 0.25) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12) !important;
 }
 .pc-sidebar .pc-link.active .pc-micon,
 .pc-sidebar .pc-link.active .pc-micon i {
