@@ -14,7 +14,8 @@
     "lint": "npm run lint --workspace backend && npm run lint --workspace frontend",
     "db:migration:run": "npm run migration:run --workspace backend",
     "db:migration:revert": "npm run migration:revert --workspace backend",
-    "db:seed": "npm run seed --workspace backend"
+    "db:seed": "npm run seed --workspace backend",
+    "db:seed:rendimiento": "npm run seed:rendimiento --workspace backend"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

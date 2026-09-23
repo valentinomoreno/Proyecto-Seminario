@@ -12,5 +12,12 @@ Thumbs.db
 backend/uploads/
 uploads/
 *.md
+!INFORME_SESION.md
 .agents/
 .claude/
+
+# Datasets locales de prueba de rendimiento (solo uso personal)
+backend/src/database/seed-rendimiento.ts
+*dataset*
+*rendimiento*
+*.dataset.sql

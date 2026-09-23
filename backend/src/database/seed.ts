@@ -206,6 +206,16 @@ async function seed(): Promise<void> {
     usuarioVenta.empleado = empleadoVenta;
     await usuarioRepository.save(usuarioVenta);
 
+    // Si existiera un usuario legacy 'user', reasignamos ventas y eliminamos
+    const legacyUser = await usuarioRepository.findOne({ where: { nombre: 'user' } });
+    if (legacyUser) {
+      await manager.query('UPDATE ventas SET id_usuario = $1 WHERE id_usuario = $2', [
+        usuarioVenta.idUsuario,
+        legacyUser.idUsuario,
+      ]);
+      await usuarioRepository.remove(legacyUser);
+    }
+
     // 3. Catálogo base
     for (const categoria of [
       { nombre: 'Motor', descripcion: 'Repuestos y componentes del motor.' },
