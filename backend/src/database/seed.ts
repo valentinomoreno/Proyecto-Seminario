@@ -141,8 +141,6 @@ async function seed(): Promise<void> {
 
   await AppDataSource.initialize();
   await AppDataSource.transaction(async (manager) => {
-    await manager.query('CREATE SEQUENCE IF NOT EXISTS "producto_codigo_seq" START WITH 1 INCREMENT BY 1');
-
     const adminRol = await restoreOrCreate(manager, Rol, { nombre: NombreRol.ADMINISTRADOR }, {
       nombre: NombreRol.ADMINISTRADOR,
       descripcion: 'Acceso completo a la administración del sistema.',
