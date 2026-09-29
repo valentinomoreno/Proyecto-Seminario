@@ -111,6 +111,7 @@ describe('Alertas, dashboard e importación masiva (e2e)', () => {
       .expect(201);
     expect(resultado.body).toMatchObject({ totalFilas: 2, importados: 1, conErrores: 1 });
     expect(resultado.body.errores[0].fila).toBe(3);
+    expect(resultado.body.errores[0].datos).toMatchObject({ precio_venta: 'NO_ES_PRECIO' });
   });
 
   it('expone métricas consolidadas para el administrador', async () => {

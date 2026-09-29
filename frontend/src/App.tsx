@@ -17,6 +17,7 @@ import { ProtectedRoute } from './routes/ProtectedRoute';
 import { DashboardPage } from './pages/DashboardPage';
 import { AlertasStockPage } from './pages/AlertasStockPage';
 import { UbicacionesPage } from './pages/UbicacionesPage';
+import { ImportarProductosPage } from './pages/ImportarProductosPage';
 
 import { useAuth } from './context/useAuth';
 
@@ -52,6 +53,7 @@ export default function App() {
               <Route path="/stock/alertas" element={<AlertasStockPage />} />
               <Route path="/productos/catalogos" element={<CatalogosProductoPage />} />
               <Route path="/productos/ubicaciones" element={<UbicacionesPage />} />
+              <Route path="/productos/importar" element={<ImportarProductosPage />} />
               <Route path="/productos/nuevo" element={<FormProductoPage />} />
               <Route path="/productos/:id/editar" element={<FormProductoPage />} />
             </Route>

@@ -87,5 +87,27 @@ export interface ResultadoImportacionProductos {
   totalFilas: number;
   importados: number;
   conErrores: number;
-  errores: Array<{ fila: number; producto: string; errores: string[] }>;
+  errores: ErrorImportacionProducto[];
+}
+
+export interface FilaImportacionProducto {
+  nombre: string;
+  descripcion: string;
+  precio_costo: string;
+  precio_venta: string;
+  stock_inicial: string;
+  stock_minimo: string;
+  punto_pedido: string;
+  categoria: string;
+  marca: string;
+  deposito: string;
+  sector: string;
+  estante: string;
+}
+
+export interface ErrorImportacionProducto {
+  fila: number;
+  producto: string;
+  errores: string[];
+  datos: Partial<FilaImportacionProducto>;
 }

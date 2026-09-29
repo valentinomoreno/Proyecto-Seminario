@@ -8,7 +8,6 @@ import type {
   Marca,
   Producto,
   ProductoPayload,
-  ResultadoImportacionProductos,
   Sector,
 } from '../types/producto.types';
 
@@ -49,7 +48,6 @@ export function FormProductoPage() {
   const editando = Boolean(id);
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const importInputRef = useRef<HTMLInputElement>(null);
 
   const [codigoActual, setCodigoActual] = useState<string>('');
   const [form, setForm] = useState<FormState>(initialForm);
@@ -61,8 +59,6 @@ export function FormProductoPage() {
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [subiendoFoto, setSubiendoFoto] = useState(false);
-  const [importando, setImportando] = useState(false);
-  const [resultadoImportacion, setResultadoImportacion] = useState<ResultadoImportacionProductos | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -153,42 +149,6 @@ export function FormProductoPage() {
 
   function eliminarFoto() {
     update('imagenUrl', '');
-  }
-
-  async function descargarPlantilla() {
-    setError('');
-    try {
-      const { data } = await api.get<Blob>('/productos/importacion/plantilla', { responseType: 'blob' });
-      const url = URL.createObjectURL(data);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'plantilla-importacion-productos.xlsx';
-      link.click();
-      URL.revokeObjectURL(url);
-    } catch (requestError) {
-      setError(getApiErrorMessage(requestError));
-    }
-  }
-
-  async function importarArchivo(event: ChangeEvent<HTMLInputElement>) {
-    const archivo = event.target.files?.[0];
-    if (!archivo) return;
-    setImportando(true);
-    setError('');
-    setResultadoImportacion(null);
-    const formData = new FormData();
-    formData.append('archivo', archivo);
-    try {
-      const { data } = await api.post<ResultadoImportacionProductos>('/productos/importar', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      setResultadoImportacion(data);
-    } catch (requestError) {
-      setError(getApiErrorMessage(requestError));
-    } finally {
-      setImportando(false);
-      if (importInputRef.current) importInputRef.current.value = '';
-    }
   }
 
   async function selectDeposito(depositoId: string) {
@@ -297,75 +257,6 @@ export function FormProductoPage() {
         <div className="alert alert-danger d-flex align-items-center gap-2 mb-4" role="alert">
           <i className="ti ti-alert-circle fs-5" />
           <div>{error}</div>
-        </div>
-      )}
-
-      {!editando && (
-        <div className="card shadow-sm border-0 rounded-3 mb-4 border-start border-4 border-info">
-          <div className="card-body p-4 d-flex flex-wrap align-items-center justify-content-between gap-3">
-            <div>
-              <h6 className="fw-bold mb-1 d-flex align-items-center gap-2">
-                <i className="ti ti-file-spreadsheet text-success fs-4" />
-                Carga masiva desde Excel o CSV
-              </h6>
-              <p className="text-muted small mb-0">
-                Descargue la plantilla, complete hasta 2000 filas e importe solo los productos válidos.
-              </p>
-            </div>
-            <div className="d-flex flex-wrap gap-2">
-              <button type="button" className="btn btn-outline-secondary" onClick={() => void descargarPlantilla()}>
-                <i className="ti ti-download me-1" /> Descargar plantilla
-              </button>
-              <button
-                type="button"
-                className="btn btn-info text-white"
-                onClick={() => importInputRef.current?.click()}
-                disabled={importando}
-              >
-                {importando ? (
-                  <><span className="spinner-border spinner-border-sm me-2" />Procesando…</>
-                ) : (
-                  <><i className="ti ti-upload me-1" /> Importar archivo</>
-                )}
-              </button>
-              <input
-                ref={importInputRef}
-                type="file"
-                accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
-                className="d-none"
-                onChange={(event) => void importarArchivo(event)}
-              />
-            </div>
-          </div>
-          {resultadoImportacion && (
-            <div className="card-footer bg-light border-top p-3">
-              <div className="d-flex flex-wrap gap-3 align-items-center">
-                <span className="badge bg-light-success text-success fs-6 px-3 py-2">
-                  {resultadoImportacion.importados} cargados exitosamente
-                </span>
-                <span className={`badge fs-6 px-3 py-2 ${resultadoImportacion.conErrores ? 'bg-light-danger text-danger' : 'bg-light-secondary text-secondary'}`}>
-                  {resultadoImportacion.conErrores} con errores
-                </span>
-                <Link to="/catalogo" className="btn btn-sm btn-outline-primary ms-auto">Ver catálogo</Link>
-              </div>
-              {resultadoImportacion.errores.length > 0 && (
-                <div className="table-responsive mt-3" style={{ maxHeight: '240px' }}>
-                  <table className="table table-sm table-bordered bg-white mb-0">
-                    <thead><tr><th>Fila</th><th>Producto</th><th>Errores</th></tr></thead>
-                    <tbody>
-                      {resultadoImportacion.errores.map((item) => (
-                        <tr key={`${item.fila}-${item.producto}`}>
-                          <td>{item.fila}</td>
-                          <td>{item.producto}</td>
-                          <td>{item.errores.join(' ')}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
         </div>
       )}
 

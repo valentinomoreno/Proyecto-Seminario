@@ -28,7 +28,7 @@ export function LoginPage() {
       const loggedUser = await login(nombre.trim(), contrasena);
       const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
       const defaultDest = loggedUser.rol === 'ADMINISTRADOR' ? '/dashboard' : '/ventas/nueva';
-      const adminOnlyPaths = ['/dashboard', '/stock/alertas', '/productos/nuevo', '/productos/catalogos', '/productos/ubicaciones'];
+      const adminOnlyPaths = ['/dashboard', '/stock/alertas', '/productos/nuevo', '/productos/catalogos', '/productos/ubicaciones', '/productos/importar'];
       const targetPath =
         from && from !== '/login' && !(loggedUser.rol !== 'ADMINISTRADOR' && adminOnlyPaths.some((p) => from.startsWith(p)))
           ? from

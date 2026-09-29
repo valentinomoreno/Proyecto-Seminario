@@ -28,6 +28,7 @@ export interface ErrorImportacion {
   fila: number;
   producto: string;
   errores: string[];
+  datos: FilaCruda;
 }
 
 export interface ResultadoImportacion {
@@ -135,7 +136,32 @@ export class ImportacionProductosService {
   }
 
   async generarPlantilla(): Promise<Buffer> {
+    const [categorias, estantes] = await Promise.all([
+      this.categoriasRepository.find({ relations: { marcas: true }, order: { nombre: 'ASC' } }),
+      this.estantesRepository.find({ relations: { sector: { deposito: true } }, order: { codigo: 'ASC' } }),
+    ]);
     const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'Sistema de Repuestos';
+    workbook.title = 'Plantilla estándar de importación de productos';
+    workbook.subject = 'Carga masiva de inventario';
+
+    const instrucciones = workbook.addWorksheet('Instrucciones');
+    instrucciones.columns = [{ width: 25 }, { width: 72 }];
+    instrucciones.addRows([
+      ['PLANTILLA', 'Importación de productos - versión 1.0'],
+      ['Uso', 'Complete una fila por producto en la hoja Productos. No cambie los encabezados.'],
+      ['Resultado', 'Las filas correctas se cargan automáticamente. Las filas con errores quedan disponibles para corregir, omitir o completar datos faltantes.'],
+      ['Formatos', 'Precios: números positivos con hasta 2 decimales. Stock, mínimo y punto de pedido: enteros mayores o iguales a 0.'],
+      ['Regla de stock', 'punto_pedido debe ser mayor o igual a stock_minimo.'],
+      ['Clasificación', 'Categoría y marca deben existir y estar asociadas. Consulte la hoja Referencias.'],
+      ['Ubicación', 'La combinación depósito, sector y estante debe existir. Consulte la hoja Referencias.'],
+      ['Límite', 'Máximo 2000 productos y 5 MB por archivo. Formatos admitidos: XLSX y CSV.'],
+    ]);
+    instrucciones.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 14 };
+    instrucciones.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1D4ED8' } };
+    instrucciones.getColumn(1).font = { bold: true };
+    instrucciones.eachRow((row) => { row.alignment = { vertical: 'top', wrapText: true }; });
+
     const hoja = workbook.addWorksheet('Productos');
     hoja.columns = [
       { header: 'nombre', key: 'nombre', width: 34 },
@@ -156,22 +182,105 @@ export class ImportacionProductosService {
     encabezado.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1677FF' } };
     hoja.views = [{ state: 'frozen', ySplit: 1 }];
     hoja.autoFilter = 'A1:L1';
-    hoja.addRow({
-      nombre: 'Filtro de aceite',
-      descripcion: 'Ejemplo: elimine esta fila antes de importar',
+    hoja.getColumn('precioCosto').numFmt = '#,##0.00';
+    hoja.getColumn('precioVenta').numFmt = '#,##0.00';
+    ['stock', 'minimo', 'pedido'].forEach((columna) => { hoja.getColumn(columna).numFmt = '0'; });
+
+    const referencias = workbook.addWorksheet('Referencias');
+    referencias.columns = [
+      { header: 'categorias', key: 'categoria', width: 28 },
+      { header: 'marcas', key: 'marca', width: 28 },
+      { header: 'depositos', key: 'deposito', width: 28 },
+      { header: 'sectores', key: 'sector', width: 24 },
+      { header: 'estantes', key: 'estante', width: 20 },
+      { header: 'categoria_marca_habilitada', key: 'categoriaMarca', width: 48 },
+      { header: 'ubicacion_valida', key: 'ubicacion', width: 64 },
+    ];
+    const nombresCategorias = categorias.map((categoria) => categoria.nombre);
+    const nombresMarcas = [...new Set(categorias.flatMap((categoria) => categoria.marcas.map((marca) => marca.nombre)))].sort();
+    const nombresDepositos = [...new Set(estantes.map((estante) => estante.sector.deposito.nombre))].sort();
+    const nombresSectores = [...new Set(estantes.map((estante) => estante.sector.nombre))].sort();
+    const codigosEstantes = [...new Set(estantes.map((estante) => estante.codigo))].sort();
+    const asociaciones = categorias.flatMap((categoria) => categoria.marcas.map((marca) => `${categoria.nombre} → ${marca.nombre}`));
+    const ubicaciones = estantes.map((estante) => `${estante.sector.deposito.nombre} → ${estante.sector.nombre} → ${estante.codigo}`);
+    const maxReferencias = Math.max(
+      nombresCategorias.length,
+      nombresMarcas.length,
+      nombresDepositos.length,
+      nombresSectores.length,
+      codigosEstantes.length,
+      asociaciones.length,
+      ubicaciones.length,
+      1,
+    );
+    for (let index = 0; index < maxReferencias; index += 1) {
+      referencias.addRow({
+        categoria: nombresCategorias[index] ?? '',
+        marca: nombresMarcas[index] ?? '',
+        deposito: nombresDepositos[index] ?? '',
+        sector: nombresSectores[index] ?? '',
+        estante: codigosEstantes[index] ?? '',
+        categoriaMarca: asociaciones[index] ?? '',
+        ubicacion: ubicaciones[index] ?? '',
+      });
+    }
+    referencias.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    referencias.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F766E' } };
+    referencias.views = [{ state: 'frozen', ySplit: 1 }];
+    referencias.autoFilter = 'A1:G1';
+
+    this.agregarLista(hoja, 'H', 'A', nombresCategorias.length);
+    this.agregarLista(hoja, 'I', 'B', nombresMarcas.length);
+    this.agregarLista(hoja, 'J', 'C', nombresDepositos.length);
+    this.agregarLista(hoja, 'K', 'D', nombresSectores.length);
+    this.agregarLista(hoja, 'L', 'E', codigosEstantes.length);
+    this.agregarValidacion(hoja, 'C', { type: 'decimal', operator: 'greaterThanOrEqual', formulae: [0], allowBlank: false, showErrorMessage: true, error: 'Ingrese un costo mayor o igual a 0.' });
+    this.agregarValidacion(hoja, 'D', { type: 'decimal', operator: 'greaterThan', formulae: [0], allowBlank: false, showErrorMessage: true, error: 'Ingrese un precio mayor a 0.' });
+    ['E', 'F', 'G'].forEach((columna) => this.agregarValidacion(hoja, columna, {
+      type: 'whole', operator: 'greaterThanOrEqual', formulae: [0], allowBlank: false, showErrorMessage: true, error: 'Ingrese un número entero mayor o igual a 0.',
+    }));
+
+    const ejemplo = workbook.addWorksheet('Ejemplo');
+    ejemplo.columns = hoja.columns.map((columna) => ({ header: columna.header, key: columna.key, width: columna.width }));
+    const categoriaEjemplo = categorias.find((categoria) => categoria.marcas.length > 0);
+    const marcaEjemplo = categoriaEjemplo?.marcas[0];
+    const estanteEjemplo = estantes[0];
+    ejemplo.addRow({
+      nombre: 'Filtro de aceite de ejemplo',
+      descripcion: 'Esta fila es demostrativa y no se importa.',
       precioCosto: 6500,
       precioVenta: 9900,
       stock: 10,
       minimo: 3,
       pedido: 12,
-      categoria: 'Filtros',
-      marca: 'Bosch',
-      deposito: 'Depósito Principal',
-      sector: 'A',
-      estante: 'A-01',
+      categoria: categoriaEjemplo?.nombre ?? 'Categoría existente',
+      marca: marcaEjemplo?.nombre ?? 'Marca habilitada',
+      deposito: estanteEjemplo?.sector.deposito.nombre ?? 'Depósito existente',
+      sector: estanteEjemplo?.sector.nombre ?? 'Sector existente',
+      estante: estanteEjemplo?.codigo ?? 'Estante existente',
     });
+    ejemplo.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    ejemplo.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF64748B' } };
+
     const data = await workbook.xlsx.writeBuffer();
     return Buffer.from(data);
+  }
+
+  private agregarLista(hoja: ExcelJS.Worksheet, columnaDestino: string, columnaReferencia: string, cantidad: number): void {
+    if (!cantidad) return;
+    this.agregarValidacion(hoja, columnaDestino, {
+      type: 'list',
+      allowBlank: false,
+      formulae: [`'Referencias'!$${columnaReferencia}$2:$${columnaReferencia}$${cantidad + 1}`],
+      showErrorMessage: true,
+      error: 'Seleccione un valor disponible en la hoja Referencias.',
+    });
+  }
+
+  private agregarValidacion(hoja: ExcelJS.Worksheet, columna: string, validacion: ExcelJS.DataValidation): void {
+    for (let fila = 2; fila <= 2001; fila += 1) {
+      hoja.getCell(`${columna}${fila}`).dataValidation = validacion;
+    }
   }
 
   private async leerArchivo(file: Express.Multer.File): Promise<ExcelJS.Worksheet> {
@@ -255,7 +364,7 @@ export class ImportacionProductosService {
 
     if (errores.length || precioCosto === null || precioUnitario === null || stock === null
       || stockMinimo === null || puntoPedido === null || !categoria || !marca || !estante) {
-      return { fila, producto: nombre || '(sin nombre)', errores };
+      return { fila, producto: nombre || '(sin nombre)', errores, datos: { ...datos } };
     }
     return {
       fila,

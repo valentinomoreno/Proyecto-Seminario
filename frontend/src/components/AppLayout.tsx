@@ -140,6 +140,16 @@ export function AppLayout() {
                   </li>
                   <li className="pc-item">
                     <NavLink
+                      to="/productos/importar"
+                      className={({ isActive }) => `pc-link ${isActive ? 'active' : ''}`}
+                      onClick={closeMobileNav}
+                    >
+                      <span className="pc-micon"><i className="ti ti-file-upload" /></span>
+                      <span className="pc-mtext">Importar Productos</span>
+                    </NavLink>
+                  </li>
+                  <li className="pc-item">
+                    <NavLink
                       to="/productos/catalogos"
                       className={({ isActive }) => `pc-link ${isActive ? 'active' : ''}`}
                       onClick={closeMobileNav}

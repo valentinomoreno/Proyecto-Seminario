@@ -76,9 +76,12 @@ export function CatalogoPage() {
             </div>
             <div className="col-md-4 text-md-end mt-3 mt-md-0">
               {esAdmin && (
-                <div className="d-flex justify-content-md-end gap-2">
+                <div className="d-flex flex-wrap justify-content-md-end gap-2">
                   <Link to="/stock/alertas" className="btn btn-outline-warning d-inline-flex align-items-center gap-2">
                     <i className="ti ti-alert-triangle" /><span>Alertas</span>
+                  </Link>
+                  <Link to="/productos/importar" className="btn btn-outline-primary d-inline-flex align-items-center gap-2">
+                    <i className="ti ti-file-upload" /><span>Importar</span>
                   </Link>
                   <Link to="/productos/nuevo" className="btn btn-primary d-inline-flex align-items-center gap-2 shadow-sm">
                     <i className="ti ti-plus" /><span>Nuevo repuesto</span>
