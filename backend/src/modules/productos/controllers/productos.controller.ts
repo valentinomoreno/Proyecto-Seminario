@@ -21,10 +21,13 @@ import { randomBytes } from 'crypto';
 import { existsSync, mkdirSync } from 'fs';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { NombreRol } from '../../../common/enums/nombre-rol.enum';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
+import { UsuarioAutenticado } from '../../../common/interfaces/usuario-autenticado.interface';
+import { ConfirmarImportacionProductosDto } from '../dto/importacion-productos.dto';
 import { CreateProductoDto, QueryProductosDto, UpdateProductoDto } from '../dto/producto.dto';
 import { ProductosService } from '../services/productos.service';
 import { ImportacionProductosService } from '../services/importacion-productos.service';
@@ -57,7 +60,7 @@ export class ProductosController {
     response.send(archivo);
   }
 
-  @Post('importar')
+  @Post('importacion/previsualizar')
   @Roles(NombreRol.ADMINISTRADOR)
   @UseInterceptors(FileInterceptor('archivo', {
     limits: { fileSize: 5 * 1024 * 1024 },
@@ -69,10 +72,35 @@ export class ProductosController {
       cb(null, true);
     },
   }))
-  importar(@UploadedFile() file?: Express.Multer.File) {
+  previsualizarImportacion(@UploadedFile() file?: Express.Multer.File) {
     if (!file) throw new BadRequestException('Debe seleccionar un archivo .xlsx o .csv.');
-    return this.importacionService.importar(file);
+    return this.importacionService.previsualizar(file);
   }
+
+  @Post('importacion/confirmar')
+  @Roles(NombreRol.ADMINISTRADOR)
+  @UseInterceptors(FileInterceptor('archivo', {
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      const extension = extname(file.originalname).toLowerCase();
+      if (!['.xlsx', '.csv'].includes(extension)) {
+        return cb(new BadRequestException('Solo se admiten archivos .xlsx o .csv.'), false);
+      }
+      cb(null, true);
+    },
+  }))
+  confirmarImportacion(
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Body() dto: ConfirmarImportacionProductosDto,
+    @CurrentUser() usuario: UsuarioAutenticado,
+  ) {
+    if (!file) throw new BadRequestException('Debe seleccionar un archivo .xlsx o .csv.');
+    return this.importacionService.confirmar(file, dto.token, usuario);
+  }
+
+  @Get('importaciones')
+  @Roles(NombreRol.ADMINISTRADOR)
+  listarImportaciones() { return this.importacionService.listarHistorial(); }
 
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) { return this.service.findOne(id); }

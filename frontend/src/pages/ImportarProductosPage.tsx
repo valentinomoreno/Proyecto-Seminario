@@ -1,60 +1,74 @@
-import { type ChangeEvent, useMemo, useRef, useState } from 'react';
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, getApiErrorMessage } from '../api/axios.instance';
 import type {
-  ErrorImportacionProducto,
-  FilaImportacionProducto,
+  EstadoFilaImportacionProducto,
+  HistorialImportacionProducto,
+  PrevisualizacionImportacionProductos,
   ResultadoImportacionProductos,
 } from '../types/producto.types';
 
-const COLUMNAS: Array<{ key: keyof FilaImportacionProducto; label: string; type?: 'number' }> = [
-  { key: 'nombre', label: 'Nombre' },
-  { key: 'descripcion', label: 'Descripción' },
-  { key: 'precio_costo', label: 'Precio de costo', type: 'number' },
-  { key: 'precio_venta', label: 'Precio de venta', type: 'number' },
-  { key: 'stock_inicial', label: 'Stock inicial', type: 'number' },
-  { key: 'stock_minimo', label: 'Stock mínimo', type: 'number' },
-  { key: 'punto_pedido', label: 'Punto de pedido', type: 'number' },
-  { key: 'categoria', label: 'Categoría' },
-  { key: 'marca', label: 'Marca' },
-  { key: 'deposito', label: 'Depósito' },
-  { key: 'sector', label: 'Sector' },
-  { key: 'estante', label: 'Estante' },
+const ESTADOS: Array<{ estado: EstadoFilaImportacionProducto | 'TODOS'; etiqueta: string }> = [
+  { estado: 'TODOS', etiqueta: 'Todas' },
+  { estado: 'NUEVO', etiqueta: 'Nuevos' },
+  { estado: 'ACTUALIZAR', etiqueta: 'A actualizar' },
+  { estado: 'SIN_CAMBIOS', etiqueta: 'Sin cambios' },
+  { estado: 'ERROR', etiqueta: 'Con errores' },
 ];
 
-const FILA_VACIA = Object.fromEntries(COLUMNAS.map(({ key }) => [key, ''])) as unknown as FilaImportacionProducto;
+const ETIQUETAS_CAMPOS: Record<string, string> = {
+  nombre: 'Nombre',
+  descripcion: 'Descripción',
+  precioCosto: 'Precio de costo',
+  precioUnitario: 'Precio de venta',
+  stock: 'Stock',
+  stockMinimo: 'Stock mínimo',
+  puntoPedido: 'Punto de pedido',
+  categoria: 'Categoría',
+  marca: 'Marca',
+  estante: 'Estante',
+};
 
-function normalizarFila(datos: Partial<FilaImportacionProducto>): FilaImportacionProducto {
-  return { ...FILA_VACIA, ...datos };
-}
-
-function escaparCsv(valor: string): string {
-  return `"${valor.replace(/"/g, '""')}"`;
-}
-
-function archivoCorreccion(fila: FilaImportacionProducto, numeroFila: number): File {
-  const encabezados = COLUMNAS.map(({ key }) => key).join(',');
-  const valores = COLUMNAS.map(({ key }) => escaparCsv(fila[key])).join(',');
-  return new File([`${encabezados}\n${valores}`], `correccion-fila-${numeroFila}.csv`, { type: 'text/csv' });
+function claseEstado(estado: EstadoFilaImportacionProducto): string {
+  return {
+    NUEVO: 'bg-light-success text-success',
+    ACTUALIZAR: 'bg-light-primary text-primary',
+    SIN_CAMBIOS: 'bg-light-secondary text-secondary',
+    ERROR: 'bg-light-danger text-danger',
+  }[estado];
 }
 
 export function ImportarProductosPage() {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [archivoNombre, setArchivoNombre] = useState('');
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [previsualizacion, setPrevisualizacion] = useState<PrevisualizacionImportacionProductos | null>(null);
   const [resultado, setResultado] = useState<ResultadoImportacionProductos | null>(null);
-  const [importando, setImportando] = useState(false);
+  const [historial, setHistorial] = useState<HistorialImportacionProducto[]>([]);
+  const [filtro, setFiltro] = useState<EstadoFilaImportacionProducto | 'TODOS'>('TODOS');
+  const [analizando, setAnalizando] = useState(false);
+  const [confirmando, setConfirmando] = useState(false);
   const [descargando, setDescargando] = useState(false);
   const [error, setError] = useState('');
-  const [seleccionada, setSeleccionada] = useState<ErrorImportacionProducto | null>(null);
-  const [correccion, setCorreccion] = useState<FilaImportacionProducto>(FILA_VACIA);
-  const [reintentando, setReintentando] = useState(false);
-  const [resueltas, setResueltas] = useState<Set<number>>(new Set());
-  const [omitidas, setOmitidas] = useState<Set<number>>(new Set());
 
-  const pendientes = useMemo(
-    () => resultado?.errores.filter((item) => !resueltas.has(item.fila) && !omitidas.has(item.fila)) ?? [],
-    [resultado, resueltas, omitidas],
-  );
+  useEffect(() => {
+    void cargarHistorial();
+  }, []);
+
+  const filasVisibles = useMemo(() => {
+    if (!previsualizacion) return [];
+    return filtro === 'TODOS'
+      ? previsualizacion.filas
+      : previsualizacion.filas.filter((fila) => fila.estado === filtro);
+  }, [filtro, previsualizacion]);
+
+  async function cargarHistorial() {
+    try {
+      const { data } = await api.get<HistorialImportacionProducto[]>('/productos/importaciones');
+      setHistorial(data);
+    } catch {
+      // El historial no bloquea el flujo principal de importación.
+    }
+  }
 
   async function descargarPlantilla() {
     setDescargando(true);
@@ -74,67 +88,55 @@ export function ImportarProductosPage() {
     }
   }
 
-  async function enviarArchivo(archivo: File): Promise<ResultadoImportacionProductos> {
-    const formData = new FormData();
-    formData.append('archivo', archivo);
-    const { data } = await api.post<ResultadoImportacionProductos>('/productos/importar', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    return data;
-  }
-
-  async function importarArchivo(event: ChangeEvent<HTMLInputElement>) {
-    const archivo = event.target.files?.[0];
-    if (!archivo) return;
-    setImportando(true);
-    setError('');
+  async function analizarArchivo(event: ChangeEvent<HTMLInputElement>) {
+    const seleccionado = event.target.files?.[0];
+    if (!seleccionado) return;
+    setArchivo(seleccionado);
+    setPrevisualizacion(null);
     setResultado(null);
-    setResueltas(new Set());
-    setOmitidas(new Set());
-    setArchivoNombre(archivo.name);
+    setFiltro('TODOS');
+    setAnalizando(true);
+    setError('');
+    const formData = new FormData();
+    formData.append('archivo', seleccionado);
     try {
-      setResultado(await enviarArchivo(archivo));
+      const { data } = await api.post<PrevisualizacionImportacionProductos>(
+        '/productos/importacion/previsualizar',
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } },
+      );
+      setPrevisualizacion(data);
     } catch (requestError) {
       setError(getApiErrorMessage(requestError));
+      setArchivo(null);
     } finally {
-      setImportando(false);
+      setAnalizando(false);
       if (inputRef.current) inputRef.current.value = '';
     }
   }
 
-  function resolver(item: ErrorImportacionProducto) {
-    setSeleccionada(item);
-    setCorreccion(normalizarFila(item.datos));
-  }
-
-  async function reintentar() {
-    if (!seleccionada) return;
-    setReintentando(true);
+  async function confirmarImportacion() {
+    if (!archivo || !previsualizacion) return;
+    setConfirmando(true);
     setError('');
+    const formData = new FormData();
+    formData.append('archivo', archivo);
+    formData.append('token', previsualizacion.token);
     try {
-      const respuesta = await enviarArchivo(archivoCorreccion(correccion, seleccionada.fila));
-      if (respuesta.importados === 1) {
-        setResueltas((actuales) => new Set(actuales).add(seleccionada.fila));
-        setSeleccionada(null);
-      } else if (respuesta.errores[0]) {
-        const actualizada = { ...respuesta.errores[0], fila: seleccionada.fila };
-        setResultado((actual) => actual ? {
-          ...actual,
-          errores: actual.errores.map((item) => item.fila === seleccionada.fila ? actualizada : item),
-        } : actual);
-        setSeleccionada(actualizada);
-        setCorreccion(normalizarFila(actualizada.datos));
-      }
+      const { data } = await api.post<ResultadoImportacionProductos>(
+        '/productos/importacion/confirmar',
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } },
+      );
+      setResultado(data);
+      setPrevisualizacion(null);
+      setArchivo(null);
+      await cargarHistorial();
     } catch (requestError) {
       setError(getApiErrorMessage(requestError));
     } finally {
-      setReintentando(false);
+      setConfirmando(false);
     }
-  }
-
-  function omitirFila(fila: number) {
-    setOmitidas((actuales) => new Set(actuales).add(fila));
-    setSeleccionada(null);
   }
 
   return (
@@ -142,8 +144,8 @@ export function ImportarProductosPage() {
       <div className="page-header mb-4">
         <div className="page-block d-flex flex-wrap justify-content-between align-items-center gap-3">
           <div>
-            <h4 className="mb-1 fw-bold">Importar Productos</h4>
-            <p className="text-muted mb-0">Carga masiva controlada con plantilla estándar y resolución de errores por fila.</p>
+            <h4 className="mb-1 fw-bold">Importar productos</h4>
+            <p className="text-muted mb-0">Previsualizá altas, actualizaciones y errores antes de modificar el inventario.</p>
           </div>
           <Link to="/catalogo" className="btn btn-outline-secondary"><i className="ti ti-arrow-left me-1" />Volver al catálogo</Link>
         </div>
@@ -153,142 +155,118 @@ export function ImportarProductosPage() {
 
       <div className="row g-4 mb-4">
         <div className="col-lg-6">
-          <div className="card border-0 shadow-sm h-100">
-            <div className="card-body p-4 d-flex gap-3 align-items-start">
-              <span className="badge rounded-circle bg-light-primary text-primary p-3 fs-5">1</span>
-              <div className="flex-grow-1">
-                <h5 className="fw-bold">Descargar el archivo estándar</h5>
-                <p className="text-muted small">Incluye instrucciones, encabezados inalterables, formatos, listas de referencia y un ejemplo separado.</p>
-                <button type="button" className="btn btn-outline-primary" onClick={() => void descargarPlantilla()} disabled={descargando}>
-                  <i className="ti ti-file-spreadsheet me-1" />{descargando ? 'Preparando…' : 'Descargar plantilla estándar'}
-                </button>
-              </div>
+          <div className="card border-0 shadow-sm h-100"><div className="card-body p-4 d-flex gap-3 align-items-start">
+            <span className="badge rounded-circle bg-light-primary text-primary p-3 fs-5">1</span>
+            <div className="flex-grow-1">
+              <h5 className="fw-bold">Descargar la plantilla estándar</h5>
+              <p className="text-muted small">Incluye SKU, instrucciones, formatos, referencias válidas y un ejemplo separado.</p>
+              <button type="button" className="btn btn-outline-primary" onClick={() => void descargarPlantilla()} disabled={descargando}>
+                <i className="ti ti-file-spreadsheet me-1" />{descargando ? 'Preparando…' : 'Descargar plantilla'}
+              </button>
             </div>
-          </div>
+          </div></div>
         </div>
         <div className="col-lg-6">
-          <div className="card border-0 shadow-sm h-100">
-            <div className="card-body p-4 d-flex gap-3 align-items-start">
-              <span className="badge rounded-circle bg-light-success text-success p-3 fs-5">2</span>
-              <div className="flex-grow-1">
-                <h5 className="fw-bold">Seleccionar el archivo completo</h5>
-                <p className="text-muted small">El sistema filtra las filas: carga las correctas y separa las que necesitan una decisión.</p>
-                <button type="button" className="btn btn-primary" onClick={() => inputRef.current?.click()} disabled={importando}>
-                  {importando ? <><span className="spinner-border spinner-border-sm me-2" />Analizando…</> : <><i className="ti ti-upload me-1" />Seleccionar Excel o CSV</>}
-                </button>
-                <input
-                  ref={inputRef}
-                  aria-label="Archivo de productos"
-                  type="file"
-                  accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
-                  className="d-none"
-                  onChange={(event) => void importarArchivo(event)}
-                />
-                {archivoNombre && <small className="d-block text-muted mt-2"><i className="ti ti-paperclip me-1" />{archivoNombre}</small>}
-              </div>
+          <div className="card border-0 shadow-sm h-100"><div className="card-body p-4 d-flex gap-3 align-items-start">
+            <span className="badge rounded-circle bg-light-success text-success p-3 fs-5">2</span>
+            <div className="flex-grow-1">
+              <h5 className="fw-bold">Analizar Excel o CSV</h5>
+              <p className="text-muted small">Este paso no modifica datos. Los cambios se aplican recién al confirmar.</p>
+              <button type="button" className="btn btn-primary" onClick={() => inputRef.current?.click()} disabled={analizando || confirmando}>
+                {analizando ? <><span className="spinner-border spinner-border-sm me-2" />Analizando…</> : <><i className="ti ti-upload me-1" />Seleccionar archivo</>}
+              </button>
+              <input ref={inputRef} aria-label="Archivo de productos" type="file"
+                accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+                className="d-none" onChange={(event) => void analizarArchivo(event)} />
+              {archivo && <small className="d-block text-muted mt-2"><i className="ti ti-paperclip me-1" />{archivo.name}</small>}
             </div>
-          </div>
+          </div></div>
         </div>
       </div>
 
-      {resultado && (
-        <div className="card border-0 shadow-sm">
+      {previsualizacion && (
+        <div className="card border-0 shadow-sm mb-4">
           <div className="card-header p-4">
             <div className="d-flex flex-wrap justify-content-between align-items-start gap-3">
               <div>
-                <h5 className="fw-bold mb-1">Resultado de la importación</h5>
-                <p className="text-muted small mb-0">Las filas válidas ya quedaron cargadas. Resolvé únicamente las pendientes.</p>
+                <h5 className="fw-bold mb-1">Previsualización</h5>
+                <p className="text-muted small mb-0">Revisá la clasificación. Las filas con error se omitirán y quedarán registradas.</p>
               </div>
-              <div className="d-flex flex-wrap gap-2">
-                <span className="badge bg-light-secondary text-secondary px-3 py-2">{resultado.totalFilas} analizadas</span>
-                <span className="badge bg-light-success text-success px-3 py-2">{resultado.importados} cargadas</span>
-                <span className="badge bg-light-primary text-primary px-3 py-2">{resueltas.size} corregidas</span>
-                <span className="badge bg-light-warning text-warning px-3 py-2">{pendientes.length} pendientes</span>
-                <span className="badge bg-light-secondary text-secondary px-3 py-2">{omitidas.size} omitidas</span>
+              <div className="d-flex gap-2">
+                <button type="button" className="btn btn-outline-secondary" onClick={() => inputRef.current?.click()} disabled={confirmando}>Elegir otro archivo</button>
+                <button type="button" className="btn btn-success" onClick={() => void confirmarImportacion()} disabled={confirmando}>
+                  {confirmando ? <><span className="spinner-border spinner-border-sm me-2" />Confirmando…</> : <><i className="ti ti-check me-1" />Confirmar importación</>}
+                </button>
               </div>
             </div>
           </div>
-          <div className="card-body p-0">
-            {pendientes.length === 0 ? (
-              <div className="text-center py-5 px-3">
-                <i className="ti ti-circle-check text-success fs-1 d-block mb-2" />
-                <strong>No quedan filas pendientes.</strong>
-                <p className="text-muted mb-3">La importación fue revisada por completo.</p>
-                <Link to="/catalogo" className="btn btn-primary">Ver productos cargados</Link>
-              </div>
-            ) : (
-              <div className="table-responsive">
-                <table className="table table-hover align-middle mb-0">
-                  <thead className="table-light"><tr><th>Fila</th><th>Producto</th><th>Qué está mal</th><th className="text-end">Decidir</th></tr></thead>
-                  <tbody>
-                    {pendientes.map((item) => (
-                      <tr key={item.fila}>
-                        <td><span className="badge bg-light-secondary text-secondary">{item.fila}</span></td>
-                        <td><strong>{item.producto}</strong></td>
-                        <td><ul className="mb-0 ps-3 small text-danger">{item.errores.map((detalle) => <li key={detalle}>{detalle}</li>)}</ul></td>
-                        <td className="text-end"><button type="button" className="btn btn-sm btn-outline-primary" onClick={() => resolver(item)}><i className="ti ti-tool me-1" />Resolver</button></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          <div className="card-body p-4">
+            <div className="row g-3 mb-4">
+              <div className="col-6 col-xl-3"><div className="border rounded-3 p-3"><small className="text-muted">Productos nuevos</small><strong className="d-block fs-3 text-success">{previsualizacion.resumen.nuevos}</strong></div></div>
+              <div className="col-6 col-xl-3"><div className="border rounded-3 p-3"><small className="text-muted">Se actualizarán</small><strong className="d-block fs-3 text-primary">{previsualizacion.resumen.actualizar}</strong></div></div>
+              <div className="col-6 col-xl-3"><div className="border rounded-3 p-3"><small className="text-muted">Sin cambios</small><strong className="d-block fs-3 text-secondary">{previsualizacion.resumen.sinCambios}</strong></div></div>
+              <div className="col-6 col-xl-3"><div className="border rounded-3 p-3"><small className="text-muted">Con errores</small><strong className="d-block fs-3 text-danger">{previsualizacion.resumen.errores}</strong></div></div>
+            </div>
+            <div className="d-flex flex-wrap gap-2 mb-3" aria-label="Filtrar resultados">
+              {ESTADOS.map((opcion) => (
+                <button key={opcion.estado} type="button" className={`btn btn-sm ${filtro === opcion.estado ? 'btn-primary' : 'btn-outline-secondary'}`} onClick={() => setFiltro(opcion.estado)}>
+                  {opcion.etiqueta}
+                </button>
+              ))}
+            </div>
+            <div className="table-responsive border rounded-3">
+              <table className="table table-hover align-middle mb-0">
+                <thead className="table-light"><tr><th>Fila</th><th>SKU</th><th>Producto</th><th>Estado</th><th>Detalle</th></tr></thead>
+                <tbody>
+                  {filasVisibles.map((fila) => (
+                    <tr key={`${fila.fila}-${fila.sku}`}>
+                      <td>{fila.fila}</td><td><code>{fila.sku}</code></td><td><strong>{fila.producto}</strong></td>
+                      <td><span className={`badge ${claseEstado(fila.estado)}`}>{fila.estado.replace('_', ' ')}</span></td>
+                      <td>
+                        {fila.errores.length > 0 && <ul className="small text-danger mb-0 ps-3">{fila.errores.map((mensaje) => <li key={mensaje}>{mensaje}</li>)}</ul>}
+                        {fila.cambios.length > 0 && <ul className="small mb-0 ps-3">{fila.cambios.map((cambio) => <li key={cambio.campo}><strong>{ETIQUETAS_CAMPOS[cambio.campo] ?? cambio.campo}:</strong> {String(cambio.actual ?? '—')} → {String(cambio.nuevo ?? '—')}</li>)}</ul>}
+                        {!fila.errores.length && !fila.cambios.length && <span className="small text-muted">{fila.estado === 'NUEVO' ? 'Se creará al confirmar.' : 'No requiere acciones.'}</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {previsualizacion.resumen.errores > 0 && (
+              <div className="alert alert-warning mt-3 mb-0 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <span>Podés corregir el archivo y volver a analizarlo, o confirmar para procesar las filas válidas.</span>
+                <div className="d-flex flex-wrap gap-2">
+                  <Link target="_blank" rel="noreferrer" to="/productos/catalogos" className="btn btn-sm btn-outline-secondary">Crear categoría o marca</Link>
+                  <Link target="_blank" rel="noreferrer" to="/productos/ubicaciones" className="btn btn-sm btn-outline-secondary">Crear ubicación</Link>
+                </div>
               </div>
             )}
           </div>
         </div>
       )}
 
-      {seleccionada && (
-        <div className="modal fade show d-block" role="dialog" aria-modal="true" aria-labelledby="resolver-importacion-title" style={{ background: 'rgba(15, 23, 42, 0.65)' }}>
-          <div className="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-            <div className="modal-content border-0 shadow-lg">
-              <div className="modal-header">
-                <div>
-                  <h5 className="modal-title fw-bold" id="resolver-importacion-title">Resolver fila {seleccionada.fila}</h5>
-                  <p className="small text-muted mb-0">Corregí los datos y reintentá, creá las referencias faltantes o decidí omitir la fila.</p>
-                </div>
-                <button type="button" className="btn-close" aria-label="Cerrar" onClick={() => setSeleccionada(null)} />
-              </div>
-              <div className="modal-body">
-                <div className="alert alert-warning py-2">
-                  <strong>Problemas detectados:</strong>
-                  <ul className="mb-0 mt-1">{seleccionada.errores.map((detalle) => <li key={detalle}>{detalle}</li>)}</ul>
-                </div>
-                <div className="row g-3">
-                  {COLUMNAS.map(({ key, label, type }) => (
-                    <div className={key === 'descripcion' ? 'col-12' : 'col-md-6 col-xl-4'} key={key}>
-                      <label className="form-label fw-semibold" htmlFor={`correccion-${key}`}>{label}</label>
-                      <input
-                        id={`correccion-${key}`}
-                        className="form-control"
-                        type={type === 'number' ? 'number' : 'text'}
-                        min={type === 'number' ? 0 : undefined}
-                        step={key.startsWith('precio_') ? '0.01' : type === 'number' ? '1' : undefined}
-                        value={correccion[key]}
-                        onChange={(event) => setCorreccion((actual) => ({ ...actual, [key]: event.target.value }))}
-                      />
-                    </div>
-                  ))}
-                </div>
-                <div className="border rounded-3 bg-light p-3 mt-4">
-                  <strong className="d-block mb-2">¿Falta crear una referencia?</strong>
-                  <div className="d-flex flex-wrap gap-2">
-                    <Link target="_blank" rel="noreferrer" to="/productos/catalogos" className="btn btn-sm btn-outline-secondary"><i className="ti ti-tags me-1" />Crear categoría o marca</Link>
-                    <Link target="_blank" rel="noreferrer" to="/productos/ubicaciones" className="btn btn-sm btn-outline-secondary"><i className="ti ti-building-warehouse me-1" />Crear depósito, sector o estante</Link>
-                  </div>
-                  <small className="text-muted d-block mt-2">Las pantallas se abren aparte. Después regresá, completá el nombre exactamente y reintentá esta fila.</small>
-                </div>
-              </div>
-              <div className="modal-footer d-flex flex-wrap justify-content-between gap-2">
-                <button type="button" className="btn btn-outline-danger" onClick={() => omitirFila(seleccionada.fila)}>Omitir esta fila</button>
-                <div className="d-flex gap-2">
-                  <button type="button" className="btn btn-outline-secondary" onClick={() => setSeleccionada(null)}>Decidir después</button>
-                  <button type="button" className="btn btn-primary" disabled={reintentando} onClick={() => void reintentar()}>{reintentando ? 'Validando…' : 'Corregir y reintentar'}</button>
-                </div>
-              </div>
+      {resultado && (
+        <div className="card border-0 shadow-sm mb-4">
+          <div className="card-body p-4">
+            <div className="d-flex align-items-start gap-3 mb-4"><i className="ti ti-circle-check text-success fs-1" /><div><h5 className="fw-bold mb-1">Importación completada</h5><p className="text-muted mb-0">Los productos válidos fueron procesados y el resultado quedó registrado.</p></div></div>
+            <div className="row g-3">
+              <div className="col-6 col-lg-3"><div className="border rounded p-3"><small>Creados</small><strong className="d-block fs-4 text-success">{resultado.creados}</strong></div></div>
+              <div className="col-6 col-lg-3"><div className="border rounded p-3"><small>Actualizados</small><strong className="d-block fs-4 text-primary">{resultado.actualizados}</strong></div></div>
+              <div className="col-6 col-lg-3"><div className="border rounded p-3"><small>Sin cambios</small><strong className="d-block fs-4">{resultado.sinCambios}</strong></div></div>
+              <div className="col-6 col-lg-3"><div className="border rounded p-3"><small>Errores</small><strong className="d-block fs-4 text-danger">{resultado.errores}</strong></div></div>
             </div>
+            {resultado.detalleErrores.length > 0 && <div className="table-responsive mt-4"><table className="table table-sm"><thead><tr><th>Fila</th><th>SKU</th><th>Producto</th><th>Motivo</th></tr></thead><tbody>{resultado.detalleErrores.map((item) => <tr key={`${item.fila}-${item.sku}`}><td>{item.fila}</td><td>{item.sku}</td><td>{item.producto}</td><td className="text-danger">{item.errores.join(' ')}</td></tr>)}</tbody></table></div>}
           </div>
         </div>
       )}
+
+      <div className="card border-0 shadow-sm">
+        <div className="card-header p-4"><h5 className="fw-bold mb-1">Historial de importaciones</h5><p className="text-muted small mb-0">Últimas 50 confirmaciones realizadas.</p></div>
+        <div className="table-responsive"><table className="table table-hover align-middle mb-0"><thead className="table-light"><tr><th>Fecha</th><th>Archivo</th><th>Usuario</th><th>Procesados</th><th>Creados</th><th>Actualizados</th><th>Sin cambios</th><th>Errores</th></tr></thead><tbody>
+          {historial.length === 0 && <tr><td colSpan={8} className="text-center text-muted py-4">Todavía no hay importaciones confirmadas.</td></tr>}
+          {historial.map((item) => <tr key={item.idImportacion}><td>{new Date(item.fechaHora).toLocaleString('es-AR')}</td><td>{item.nombreArchivo}</td><td>{item.usuarioNombre}</td><td>{item.totalProcesados}</td><td className="text-success">{item.creados}</td><td className="text-primary">{item.actualizados}</td><td>{item.sinCambios}</td><td className={item.errores ? 'text-danger' : ''}>{item.errores}</td></tr>)}
+        </tbody></table></div>
+      </div>
     </div>
   );
 }

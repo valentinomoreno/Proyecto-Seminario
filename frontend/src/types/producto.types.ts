@@ -83,14 +83,8 @@ export interface ProductoCatalogo {
   marca?: { idMarca: number; nombre: string };
 }
 
-export interface ResultadoImportacionProductos {
-  totalFilas: number;
-  importados: number;
-  conErrores: number;
-  errores: ErrorImportacionProducto[];
-}
-
 export interface FilaImportacionProducto {
+  sku: string;
   nombre: string;
   descripcion: string;
   precio_costo: string;
@@ -105,9 +99,63 @@ export interface FilaImportacionProducto {
   estante: string;
 }
 
-export interface ErrorImportacionProducto {
+export type EstadoFilaImportacionProducto = 'NUEVO' | 'ACTUALIZAR' | 'SIN_CAMBIOS' | 'ERROR';
+
+export interface CambioImportacionProducto {
+  campo: string;
+  actual: string | number | null;
+  nuevo: string | number | null;
+}
+
+export interface FilaPrevisualizacionProducto {
   fila: number;
+  sku: string;
   producto: string;
+  estado: EstadoFilaImportacionProducto;
+  idProducto?: number;
+  cambios: CambioImportacionProducto[];
   errores: string[];
   datos: Partial<FilaImportacionProducto>;
+}
+
+export interface PrevisualizacionImportacionProductos {
+  token: string;
+  nombreArchivo: string;
+  totalFilas: number;
+  resumen: {
+    nuevos: number;
+    actualizar: number;
+    sinCambios: number;
+    errores: number;
+  };
+  filas: FilaPrevisualizacionProducto[];
+}
+
+export interface ErrorImportacionProducto {
+  fila: number;
+  sku: string;
+  producto: string;
+  errores: string[];
+}
+
+export interface ResultadoImportacionProductos {
+  idImportacion: number;
+  totalProcesados: number;
+  creados: number;
+  actualizados: number;
+  sinCambios: number;
+  errores: number;
+  detalleErrores: ErrorImportacionProducto[];
+}
+
+export interface HistorialImportacionProducto {
+  idImportacion: number;
+  fechaHora: string;
+  nombreArchivo: string;
+  usuarioNombre: string;
+  totalProcesados: number;
+  creados: number;
+  actualizados: number;
+  sinCambios: number;
+  errores: number;
 }

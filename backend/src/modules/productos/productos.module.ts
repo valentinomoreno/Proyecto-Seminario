@@ -13,6 +13,7 @@ import { Estante } from './entities/estante.entity';
 import { Marca } from './entities/marca.entity';
 import { Producto } from './entities/producto.entity';
 import { Sector } from './entities/sector.entity';
+import { ImportacionProducto } from './entities/importacion-producto.entity';
 import { CATEGORIAS_REPOSITORY } from './repositories/interfaces/categorias-repository.interface';
 import { DEPOSITOS_REPOSITORY } from './repositories/interfaces/depositos-repository.interface';
 import { ESTANTES_REPOSITORY } from './repositories/interfaces/estantes-repository.interface';
@@ -35,7 +36,7 @@ import { ImportacionProductosService } from './services/importacion-productos.se
 import { SectoresService } from './services/sectores.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Producto, Categoria, Marca, Deposito, Sector, Estante])],
+  imports: [TypeOrmModule.forFeature([Producto, Categoria, Marca, Deposito, Sector, Estante, ImportacionProducto])],
   controllers: [
     ProductosController,
     AlertasStockController,
