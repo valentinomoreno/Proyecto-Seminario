@@ -110,12 +110,14 @@ export function DevolucionesHistorialPage() {
                 )}
                 {!cargando && devoluciones.map((devolucion) => (
                   <tr key={devolucion.idDevolucion}>
-                    <td>
+                    <td className="devolucion-cliente-cell">
                       <div className="small text-muted">{formatearFechaHora(devolucion.fecha)}</div>
-                      <Link className="fw-bold text-decoration-none" to={`/devoluciones?clienteId=${devolucion.cliente.idCliente}`}>
+                      <Link className="fw-bold text-decoration-none d-block" to={`/devoluciones?clienteId=${devolucion.cliente.idCliente}`}>
                         {nombreCliente(devolucion.cliente)}
                       </Link>
-                      <small className="text-muted font-monospace">{documentoCliente(devolucion.cliente) ?? 'Sin documento'}</small>
+                      <small className="text-muted font-monospace d-block">
+                        {documentoCliente(devolucion.cliente) ?? 'Sin documento'}
+                      </small>
                     </td>
                     <td><span className="fw-semibold font-monospace">{devolucion.venta.numeroVenta}</span></td>
                     <td>

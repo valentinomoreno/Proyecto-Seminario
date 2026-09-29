@@ -386,7 +386,7 @@ export function DashboardPage() {
           {/* 5) GRÁFICOS MODERNOS */}
           <div className="row g-4 mb-4">
             {/* Gráfico 1: Ventas por día (Line Chart) */}
-            <div className="col-xl-8">
+            <div className="col-xl-7">
               <div className="card modern-card border-0 h-100">
                 <div className="card-header border-0 pt-4 px-4 bg-transparent">
                   <h2 className="fs-5 fw-bold mb-1">Volumen de ventas</h2>
@@ -399,7 +399,7 @@ export function DashboardPage() {
             </div>
 
             {/* Gráfico 2: Métodos de pago (Donut Chart) */}
-            <div className="col-xl-4">
+            <div className="col-xl-5">
               <div className="card modern-card border-0 h-100">
                 <div className="card-header border-0 pt-4 px-4 bg-transparent">
                   <h2 className="fs-5 fw-bold mb-1">Métodos de pago</h2>

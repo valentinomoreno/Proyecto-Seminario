@@ -42,6 +42,7 @@ describe('DevolucionesHistorialPage', () => {
     render(<MemoryRouter><DevolucionesHistorialPage /></MemoryRouter>);
 
     expect(await screen.findByText('Pérez, Ana')).toBeInTheDocument();
+    expect(screen.getByText('DNI 12345678')).toHaveClass('d-block');
     expect(screen.getByText('VTA-00000002')).toBeInTheDocument();
     expect(screen.getByText('NC-00004')).toBeInTheDocument();
     expect(screen.getByText('Pastilla de freno')).toBeInTheDocument();

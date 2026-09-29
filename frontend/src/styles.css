@@ -888,8 +888,11 @@ body, button, input, select, textarea {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
 }
 .kpi-label {
+  min-width: 0;
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -897,6 +900,7 @@ body, button, input, select, textarea {
   color: #64748b;
 }
 .kpi-tag {
+  flex: 0 0 auto;
   font-size: 0.7rem;
   font-weight: 600;
   padding: 2px 8px;
@@ -910,18 +914,23 @@ body, button, input, select, textarea {
 
 .kpi-value-row {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
   margin: 6px 0 4px;
 }
 .kpi-value {
-  font-size: 1.85rem;
+  min-width: 0;
+  font-size: clamp(1.25rem, 2vw, 1.85rem);
   font-weight: 700;
   color: #0f172a;
   letter-spacing: -0.02em;
   line-height: 1.1;
+  overflow-wrap: anywhere;
 }
 .kpi-subtle-icon {
+  flex: 0 0 auto;
   font-size: 1.35rem;
   color: #94a3b8;
 }
@@ -997,8 +1006,8 @@ body, button, input, select, textarea {
 
 /* DONUT CONTAINER & PAYMENT LIST (SIN SOLAPAMIENTO) */
 .dashboard-donut-container {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   width: 100%;
   gap: 1.25rem;
@@ -1038,14 +1047,13 @@ body, button, input, select, textarea {
 }
 
 .dashboard-donut-center .donut-value {
-  font-size: 1.05rem;
+  font-size: clamp(0.72rem, 1.1vw, 1.05rem);
   font-weight: 700;
   color: #0f172a;
-  line-height: 1.15;
+  line-height: 1.05;
   max-width: 96px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .dashboard-donut-center .donut-label {
@@ -1081,6 +1089,7 @@ body, button, input, select, textarea {
   color: #334155;
   transition: all 0.15s ease;
   cursor: pointer;
+  min-width: 0;
 }
 
 .dashboard-payment-row:hover {
@@ -1144,13 +1153,67 @@ body, button, input, select, textarea {
 
 @media (min-width: 768px) and (max-width: 1199px) {
   .dashboard-donut-container {
-    flex-direction: row;
-    justify-content: space-around;
+    grid-template-columns: minmax(180px, 0.8fr) minmax(280px, 1.2fr);
     align-items: center;
   }
   .dashboard-payments-list {
     max-width: 360px;
   }
+}
+
+/* KPIs de alertas: cada dato ocupa su propia línea y admite montos extensos. */
+.dashboard-kpi-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+  min-height: 118px;
+  height: 100%;
+  padding: 18px 20px;
+  border: 1px solid var(--border-soft);
+  border-left-width: 4px;
+  border-radius: 12px;
+  background: var(--bg-card);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+
+.dashboard-kpi-card > span {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dashboard-kpi-card > strong {
+  display: block;
+  max-width: 100%;
+  color: var(--text-primary);
+  font-size: clamp(1.35rem, 2.4vw, 2rem);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-kpi-card > small {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.dashboard-kpi-card.danger { border-left-color: #dc2626; }
+.dashboard-kpi-card.primary { border-left-color: var(--primary-blue); }
+.dashboard-kpi-card.neutral { border-left-color: #64748b; }
+
+.devolucion-cliente-cell {
+  min-width: 190px;
+}
+
+.devolucion-cliente-cell > a,
+.devolucion-cliente-cell > small {
+  overflow-wrap: anywhere;
 }
 
 

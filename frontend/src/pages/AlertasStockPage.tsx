@@ -97,7 +97,7 @@ export function AlertasStockPage() {
       <div className="row g-3 mb-4">
         <div className="col-md-4"><div className="dashboard-kpi-card danger"><span>Productos bajo mínimo</span><strong>{respuesta?.total ?? 0}</strong><small>stock actual ≤ stock mínimo</small></div></div>
         <div className="col-md-4"><div className="dashboard-kpi-card primary"><span>Incluidos en el documento</span><strong>{seleccionados.size}</strong><small>puede excluir filas</small></div></div>
-        <div className="col-md-4"><div className="dashboard-kpi-card neutral"><span>Costo estimado</span><strong>{moneda.format(totalEstimado)}</strong><small>según costos disponibles</small></div></div>
+        <div className="col-md-4"><div className="dashboard-kpi-card neutral"><span>Costo estimado</span><strong title={moneda.format(totalEstimado)}>{moneda.format(totalEstimado)}</strong><small>según costos disponibles</small></div></div>
       </div>
       <div className="card border-0 shadow-sm">
         <div className="card-body p-0">

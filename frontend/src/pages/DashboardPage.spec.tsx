@@ -16,13 +16,13 @@ const data: DashboardData = {
   ventas: {
     mesActual: 'septiembre de 2026',
     mesAnterior: 'agosto de 2026',
-    totalActual: 150000,
+    totalActual: 679273873,
     totalAnterior: 100000,
     operacionesActual: 12,
     operacionesAnterior: 8,
     puntos: Array.from({ length: 30 }, (_, index) => ({
       dia: index + 1,
-      actual: index === 0 ? 150000 : 0,
+      actual: index === 0 ? 679273873 : 0,
       anterior: index === 0 ? 100000 : 0,
       operacionesActual: index === 0 ? 12 : 0,
       operacionesAnterior: index === 0 ? 8 : 0,
@@ -56,7 +56,8 @@ describe('DashboardPage', () => {
     render(<MemoryRouter><DashboardPage /></MemoryRouter>);
 
     expect(await screen.findByText('Dashboard de Administración')).toBeInTheDocument();
-    expect(screen.getByText('+50.0%')).toBeInTheDocument();
+    expect(screen.getByText('+679173.9%')).toBeInTheDocument();
+    expect(screen.getAllByText(/679\.273\.873/).length).toBeGreaterThan(0);
     expect(screen.getByText('Cliente en mora')).toBeInTheDocument();
     expect(screen.queryByText('Cliente al día')).not.toBeInTheDocument();
 

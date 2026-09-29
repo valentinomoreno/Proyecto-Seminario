@@ -148,6 +148,16 @@ export function AppLayout() {
                       <span className="pc-mtext">Categorías y Marcas</span>
                     </NavLink>
                   </li>
+                  <li className="pc-item">
+                    <NavLink
+                      to="/productos/ubicaciones"
+                      className={({ isActive }) => `pc-link ${isActive ? 'active' : ''}`}
+                      onClick={closeMobileNav}
+                    >
+                      <span className="pc-micon"><i className="ti ti-building-warehouse" /></span>
+                      <span className="pc-mtext">Depósitos y Ubicaciones</span>
+                    </NavLink>
+                  </li>
                 </>
               )}
 
