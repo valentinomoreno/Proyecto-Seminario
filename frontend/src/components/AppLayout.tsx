@@ -25,6 +25,7 @@ export function AppLayout() {
           {/* LOGO HEADER */}
           <div className="m-header">
             <Link to={esAdmin ? '/dashboard' : '/ventas/nueva'} className="b-brand" onClick={closeMobileNav}>
+              <span className="brand-symbol" aria-hidden="true"><i className="ti ti-assembly" /></span>
               <div className="brand-text-datta ms-0">
                 <span className="brand-name">Autopartes</span>
                 <span className="brand-sub">Gestión integral</span>
@@ -252,6 +253,7 @@ export function AppLayout() {
 
             {/* USUARIO EN SIDEBAR (LIMPIO, SIN FOTO NI CORONITA) */}
             <div className="sidebar-user-clean">
+              <span className="sidebar-user-avatar" aria-hidden="true">{usuario?.nombre?.trim().charAt(0).toUpperCase() || 'U'}</span>
               <div className="sidebar-user-details">
                 <span className="sidebar-user-name">{usuario?.nombre}</span>
                 <span className="sidebar-user-role">{rolLabel}</span>
@@ -292,6 +294,16 @@ export function AppLayout() {
             <div className="header-brand-clean d-flex align-items-center">
               <span className="header-brand-name fw-semibold">Sistema de Repuestos</span>
             </div>
+          </div>
+          <div className="header-tools">
+            <span className="header-date d-none d-md-inline">
+              <i className="ti ti-calendar-event" aria-hidden="true" />
+              {new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())}
+            </span>
+            <Link to="/ventas/nueva" className="btn btn-primary header-sale-link">
+              <i className="ti ti-plus" aria-hidden="true" />
+              <span className="d-none d-sm-inline">Nueva venta</span>
+            </Link>
           </div>
         </div>
       </header>

@@ -26,9 +26,9 @@ export function ReportesVentasPage() {
   }, []);
   useEffect(() => { void buscar(periodoInicial()); }, [buscar]);
 
-  return <div className="container-fluid">
-    <div className="d-flex justify-content-between align-items-center mb-3">
-      <h3>Ventas mensuales</h3>
+  return <div className="container-fluid report-page">
+    <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+      <div><span className="dashboard-eyebrow">INFORMES</span><h1 className="dashboard-hero-title mb-1">Ventas mensuales</h1><p className="text-muted mb-0">Evolución de ventas netas, comprobantes y medios de cobro.</p></div>
       <button className="btn btn-outline-primary" disabled={!filas.length} onClick={() => descargarCsv('ventas-mensuales.csv',
         ['Mes', 'Operaciones', 'Bruto', 'Devoluciones', 'Neto', 'Factura A', 'Factura B', 'Factura C', 'Remito', 'Efectivo', 'Tarjeta crédito', 'Tarjeta débito', 'Transferencia', 'Mercado Pago', 'Cuenta corriente'],
         filas.map((f) => [f.mes, f.operaciones, f.bruto, f.devoluciones, f.neto,
@@ -43,7 +43,7 @@ export function ReportesVentasPage() {
       <div className="card mb-4"><div className="card-body" style={{ height: 330 }}>
         <ResponsiveContainer width="100%" height="100%"><BarChart data={filas}>
           <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="mes" /><YAxis /><Tooltip formatter={(value) => moneda(Number(value))} />
-          <Legend /><Bar dataKey="bruto" name="Ventas brutas" fill="#4978e8" /><Bar dataKey="devoluciones" name="Devoluciones" fill="#f0a93b" />
+          <Legend /><Bar dataKey="bruto" name="Ventas brutas" fill="#7659d5" radius={[5, 5, 0, 0]} /><Bar dataKey="devoluciones" name="Devoluciones" fill="#d8c4fa" radius={[5, 5, 0, 0]} />
         </BarChart></ResponsiveContainer>
       </div></div>
       <div className="table-responsive"><table className="table table-striped align-middle">

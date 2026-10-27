@@ -7,7 +7,7 @@ const moneda = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'AR
 
 const METODOS = {
   EFECTIVO: { label: 'Efectivo', color: '#10b981' },
-  MERCADO_PAGO: { label: 'Mercado Pago', color: '#6366f1' },
+  MERCADO_PAGO: { label: 'Mercado Pago', color: '#7659d5' },
   CUENTA_CORRIENTE: { label: 'Cuenta corriente', color: '#3b82f6' },
   OTROS: { label: 'Otros medios', color: '#94a3b8' },
 } as const;
@@ -45,8 +45,8 @@ function GraficoVentas({ datos }: { datos: DashboardData['ventas'] }) {
       <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Comparación diaria de ventas" className="dashboard-line-chart">
         <defs>
           <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#6366f1" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="#6366f1" stopOpacity="0.0" />
+            <stop offset="0%" stopColor="#7659d5" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="#7659d5" stopOpacity="0.0" />
           </linearGradient>
         </defs>
         {[0, 0.25, 0.5, 0.75, 1].map((ratio) => (
@@ -57,11 +57,11 @@ function GraficoVentas({ datos }: { datos: DashboardData['ventas'] }) {
         {/* Curva mes anterior (discontinua fina y neutra) */}
         <polyline points={puntosAnterior} fill="none" stroke="#94a3b8" strokeWidth="2" strokeDasharray="5 4" />
         {/* Curva mes actual (azul / violeta moderno) */}
-        <polyline points={puntosActual} fill="none" stroke="#6366f1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        <polyline points={puntosActual} fill="none" stroke="#7659d5" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
         {datos.puntos.map((punto, index) => (
           <g key={punto.dia} onMouseEnter={() => setDiaActivo(punto.dia)} onMouseLeave={() => setDiaActivo(null)} className="chart-point-group">
             <circle cx={x(index)} cy={y(punto.actual)} r="8" fill="transparent" />
-            <circle cx={x(index)} cy={y(punto.actual)} r={diaActivo === punto.dia ? 5 : 2.5} fill="#6366f1" />
+            <circle cx={x(index)} cy={y(punto.actual)} r={diaActivo === punto.dia ? 5 : 2.5} fill="#7659d5" />
           </g>
         ))}
         {datos.puntos.filter((punto) => punto.dia === 1 || punto.dia % 5 === 0).map((punto) => (
@@ -291,20 +291,20 @@ export function DashboardPage() {
       <div className="dashboard-hero-block mb-4">
         <div className="d-flex flex-wrap align-items-center justify-content-between gap-3">
           <div>
+            <span className="dashboard-eyebrow">PANEL GENERAL</span>
             <h1 className="dashboard-hero-title mb-1">Dashboard de Administración</h1>
             <p className="dashboard-hero-subtitle text-muted mb-0">
-              Métricas operativas actualizadas cada 30 segundos.
+              Tu negocio de un vistazo. Métricas actualizadas cada 30 segundos.
             </p>
           </div>
-          <button
-            type="button"
-            className="btn btn-outline-primary d-flex align-items-center gap-2 btn-refresh-hero"
-            onClick={() => void cargar(true)}
-            disabled={actualizando}
-          >
-            <i className={`ti ti-refresh ${actualizando ? 'dashboard-spin' : ''}`} />
-            <span>Actualizar ahora</span>
-          </button>
+          <div className="d-flex flex-wrap gap-2">
+            <Link to="/reportes/ventas-mensuales" className="btn btn-outline-primary d-flex align-items-center gap-2 btn-refresh-hero">
+              <i className="ti ti-chart-bar" /> Ver informes
+            </Link>
+            <button type="button" className="btn btn-primary d-flex align-items-center gap-2 btn-refresh-hero" onClick={() => void cargar(true)} disabled={actualizando}>
+              <i className={`ti ti-refresh ${actualizando ? 'dashboard-spin' : ''}`} /> Actualizar ahora
+            </button>
+          </div>
         </div>
       </div>
 
@@ -516,7 +516,7 @@ export function DashboardPage() {
           </div>
 
           <div className="d-flex justify-content-between align-items-center text-muted small mt-3 px-1">
-            <span>Inter / Tipografía moderna</span>
+          <span>Resumen operativo</span>
             <span>Última actualización: {new Date(data.actualizadoEn).toLocaleTimeString('es-AR')}</span>
           </div>
         </>

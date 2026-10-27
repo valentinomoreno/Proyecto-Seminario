@@ -7,6 +7,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import './assets/fonts/tabler-icons.min.css';
 import './assets/scss/style.scss';
 import './styles.css';
+import './v0-theme.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

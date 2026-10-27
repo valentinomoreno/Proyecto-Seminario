@@ -54,6 +54,12 @@ export function LoginPage() {
           <div className="position-relative">
             <div className="card my-5 shadow-sm border rounded-4">
               <div className="card-body p-4 p-sm-5">
+                <div className="login-brand mb-4">
+                  <span className="brand-symbol" aria-hidden="true"><i className="ti ti-assembly" /></span>
+                  <div><strong>Autopartes</strong><small>Gestión integral</small></div>
+                </div>
+                <h1 className="login-title">Bienvenido</h1>
+                <p className="login-subtitle">Ingresá con tu cuenta para continuar.</p>
                 {error && (
                   <div className="alert alert-danger d-flex align-items-center gap-2 py-2 px-3 small" role="alert">
                     <i className="ti ti-alert-circle fs-5" />

@@ -30,9 +30,9 @@ export function RankingProductosPage() {
     void api.get<Categoria[]>('/categorias').then(({ data }) => setCategorias(data)).catch(() => undefined);
   }, [buscar]);
 
-  return <div className="container-fluid">
-    <div className="d-flex justify-content-between align-items-center mb-3">
-      <h3>Ranking de productos</h3>
+  return <div className="container-fluid report-page">
+    <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+      <div><span className="dashboard-eyebrow">INFORMES</span><h1 className="dashboard-hero-title mb-1">Ranking de productos</h1><p className="text-muted mb-0">Los repuestos con más unidades vendidas en el período.</p></div>
       <button className="btn btn-outline-primary" disabled={!filas.length} onClick={() => descargarCsv('ranking-productos.csv',
         ['SKU', 'Producto', 'Categoría', 'Unidades netas', 'Recaudación neta'],
         filas.map((f) => [f.sku, f.nombre, f.categoria, f.cantidad, f.recaudacion]))}>Exportar CSV</button>
@@ -51,7 +51,7 @@ export function RankingProductosPage() {
       <div className="card mb-4"><div className="card-body" style={{ height: 360 }}>
         <ResponsiveContainer width="100%" height="100%"><BarChart data={filas.slice(0, 10)} layout="vertical" margin={{ left: 70 }}>
           <CartesianGrid strokeDasharray="3 3" /><XAxis type="number" /><YAxis dataKey="nombre" type="category" width={125} />
-          <Tooltip /><Bar dataKey="cantidad" name="Unidades netas" fill="#4978e8" />
+          <Tooltip /><Bar dataKey="cantidad" name="Unidades netas" fill="#7659d5" radius={[0, 5, 5, 0]} />
         </BarChart></ResponsiveContainer>
       </div></div>
       <div className="table-responsive"><table className="table table-striped"><thead><tr><th>#</th><th>SKU</th><th>Producto</th><th>Categoría</th><th>Unidades netas</th><th>Recaudación neta</th></tr></thead>
