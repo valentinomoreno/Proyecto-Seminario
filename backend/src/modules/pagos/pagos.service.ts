@@ -14,7 +14,7 @@ import { CrearOrdenDto } from './dto/crear-orden.dto';
 import { MercadoPagoClient, MercadoPagoHttpError, OrdenMp } from './mercado-pago.client';
 
 type EstadoQr = 'CREANDO' | 'PENDIENTE' | 'APROBADO' | 'CANCELADO' | 'EXPIRADO' | 'ERROR';
-export interface EstadoResponse { id: string; estado: EstadoQr; qrData: string | null; monto: number; venceEn: Date; idVenta: number | null; error: string | null; reservaActiva: boolean }
+export interface EstadoResponse { id: string; estado: EstadoQr; qrData: string | null; monto: number; venceEn: Date; idVenta: number | null; error: string | null; reservaActiva: boolean; simulado: boolean }
 interface PagoRow {
   id: string;
   clave_idempotencia: string;
@@ -43,9 +43,23 @@ export class PagosService {
     @Inject(VENTAS_REPOSITORY) private readonly ventas: IVentasRepository,
   ) {}
 
+  private simuladorHabilitado(): boolean {
+    return this.config.get<string>('MP_SIMULATOR_ENABLED') === 'true'
+      && this.config.get<string>('NODE_ENV') !== 'production';
+  }
+
+  private esSimulada(pago: PagoRow): boolean {
+    return pago.referencia.startsWith('SIM-');
+  }
+
   async crear(dto: CrearOrdenDto, usuario: UsuarioAutenticado, clave: string) {
-    if (!this.mp.configured() || !this.config.get<string>('MP_WEBHOOK_SECRET')) {
-      throw new ServiceUnavailableException('Mercado Pago QR no está configurado.');
+    const simulado = this.simuladorHabilitado();
+    if (!simulado && (!this.mp.configured() || !this.config.get<string>('MP_WEBHOOK_SECRET')?.trim())) {
+      const faltantes = ['MP_ACCESS_TOKEN', 'MP_EXTERNAL_POS_ID', 'MP_WEBHOOK_SECRET']
+        .filter((nombre) => !this.config.get<string>(nombre)?.trim());
+      throw new ServiceUnavailableException(faltantes.length
+        ? `Mercado Pago QR no está configurado. Faltan ${faltantes.join(', ')} en el backend.`
+        : 'Mercado Pago QR no está configurado en el backend.');
     }
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clave)) {
       throw new BadRequestException('Idempotency-Key debe ser un UUID.');
@@ -83,7 +97,7 @@ export class PagosService {
         await manager.query(`INSERT INTO pagos_qr
           (id, clave_idempotencia, solicitud_hash, referencia, id_cliente, id_usuario, monto, estado, vence_en)
           VALUES ($1,$2,$3,$4,$5,$6,$7,'CREANDO',now() + interval '15 minutes')`,
-        [id, clave, hash, `QR-${id}`, dto.idCliente, usuario.idUsuario, (centavos / 100).toFixed(2)]);
+        [id, clave, hash, simulado ? `SIM-${id}` : `QR-${id}`, dto.idCliente, usuario.idUsuario, (centavos / 100).toFixed(2)]);
         for (const item of items) {
           const p = encontrados.get(item.idProducto)!;
           await manager.query('INSERT INTO pagos_qr_items (id_pago,id_producto,cantidad,precio_unitario) VALUES ($1,$2,$3,$4)',
@@ -99,7 +113,8 @@ export class PagosService {
       }
       throw error;
     }
-    await this.crearRemota(id).catch(() => undefined);
+    if (simulado) await this.crearSimulada(id);
+    else await this.crearRemota(id).catch(() => undefined);
     return this.estado(id, usuario);
   }
 
@@ -114,6 +129,7 @@ export class PagosService {
       monto: Number(pago.monto), venceEn: pago.vence_en,
       idVenta: pago.id_venta, error: pago.error,
       reservaActiva: pago.estado === 'CREANDO' || pago.estado === 'PENDIENTE' || (pago.estado === 'ERROR' && Boolean(pago.id_orden_mp)),
+      simulado: this.esSimulada(pago),
     };
   }
 
@@ -128,6 +144,10 @@ export class PagosService {
     const [pago] = await this.db.query<PagoRow[]>('SELECT * FROM pagos_qr WHERE id = $1', [id]);
     if (pago.estado === 'APROBADO') throw new BadRequestException('El pago ya fue acreditado.');
     if (pago.estado === 'CANCELADO' || pago.estado === 'EXPIRADO' || (pago.estado === 'ERROR' && !pago.id_orden_mp)) return this.estado(id, usuario);
+    if (this.esSimulada(pago)) {
+      await this.liberar(id, 'CANCELADO');
+      return this.estado(id, usuario);
+    }
     if (!pago.id_orden_mp) {
       await this.crearRemota(id);
       const [actual] = await this.db.query<PagoRow[]>('SELECT * FROM pagos_qr WHERE id=$1', [id]);
@@ -141,6 +161,21 @@ export class PagosService {
       remota = await this.mp.consultar(pago.id_orden_mp);
     }
     await this.aplicarEstado(id, remota);
+    return this.estado(id, usuario);
+  }
+
+  async simularAcreditacion(id: string, usuario: UsuarioAutenticado): Promise<EstadoResponse> {
+    if (!this.simuladorHabilitado()) throw new ForbiddenException('El simulador QR no está habilitado.');
+    await this.estado(id, usuario);
+    const [pago] = await this.db.query<PagoRow[]>('SELECT * FROM pagos_qr WHERE id=$1', [id]);
+    if (!pago || !this.esSimulada(pago)) throw new BadRequestException('La orden no es simulada.');
+    if (pago.estado === 'APROBADO') return this.estado(id, usuario);
+    if (pago.estado !== 'PENDIENTE') throw new BadRequestException('La orden simulada no está pendiente.');
+    if (new Date(pago.vence_en).getTime() <= Date.now()) {
+      await this.liberar(id, 'EXPIRADO');
+      return this.estado(id, usuario);
+    }
+    await this.acreditar(id, `SIM-PAY-${id}`);
     return this.estado(id, usuario);
   }
 
@@ -162,29 +197,37 @@ export class PagosService {
 
   @Cron(CronExpression.EVERY_10_SECONDS)
   async conciliar(): Promise<void> {
-    if (this.procesando || !this.mp.configured()) return;
+    if (this.procesando) return;
     this.procesando = true;
     try {
-      const eventos = await this.db.query<Array<{ id_evento: string; id_orden_mp: string }>>(`
+      const eventos = this.mp.configured() ? await this.db.query<Array<{ id_evento: string; id_orden_mp: string }>>(`
         SELECT id_evento,id_orden_mp FROM pagos_qr_eventos WHERE procesado_en IS NULL
-        ORDER BY recibido_en LIMIT 30`);
+        ORDER BY recibido_en LIMIT 30`) : [];
       for (const evento of eventos) {
         try {
           const [pago] = await this.db.query<PagoRow[]>('SELECT * FROM pagos_qr WHERE id_orden_mp=$1', [evento.id_orden_mp]);
-          if (pago) await this.consultarRemota(pago.id);
+          if (pago && !this.esSimulada(pago)) await this.consultarRemota(pago.id);
           await this.db.query('UPDATE pagos_qr_eventos SET procesado_en=now(), intentos=intentos+1 WHERE id_evento=$1', [evento.id_evento]);
         } catch (error) {
           await this.db.query('UPDATE pagos_qr_eventos SET intentos=intentos+1, ultimo_error=$2 WHERE id_evento=$1',
             [evento.id_evento, error instanceof Error ? error.message.slice(0, 500) : 'Error']);
         }
       }
-      const pendientes = await this.db.query<Array<{ id: string; estado: EstadoQr }>>(`
-        SELECT id, estado FROM pagos_qr WHERE
+      const pendientes = await this.db.query<Array<{ id: string; estado: EstadoQr; referencia: string; vence_en: Date }>>(`
+        SELECT id, estado, referencia, vence_en FROM pagos_qr WHERE
           (estado IN ('CREANDO','PENDIENTE') OR (estado='ERROR' AND id_orden_mp IS NOT NULL))
           AND actualizado_en < now() - interval '8 seconds'
         ORDER BY actualizado_en LIMIT 30`);
       for (const pendiente of pendientes) {
         try {
+          if (pendiente.referencia.startsWith('SIM-')) {
+            if (pendiente.estado === 'CREANDO' && this.simuladorHabilitado()) await this.crearSimulada(pendiente.id);
+            else if (pendiente.estado === 'PENDIENTE' && new Date(pendiente.vence_en).getTime() <= Date.now()) {
+              await this.liberar(pendiente.id, 'EXPIRADO');
+            }
+            continue;
+          }
+          if (!this.mp.configured()) continue;
           if (pendiente.estado === 'CREANDO') await this.crearRemota(pendiente.id);
           else await this.consultarRemota(pendiente.id);
         } catch (error) {
@@ -194,6 +237,12 @@ export class PagosService {
     } finally {
       this.procesando = false;
     }
+  }
+
+  private async crearSimulada(id: string): Promise<void> {
+    await this.db.query(`UPDATE pagos_qr SET id_orden_mp=$2, qr_data=$3, estado='PENDIENTE', actualizado_en=now()
+      WHERE id=$1 AND estado='CREANDO' AND referencia=$4`,
+    [id, `SIM${id.replaceAll('-', '').toUpperCase()}`, `SIMULACION-QR:${id}`, `SIM-${id}`]);
   }
 
   private async crearRemota(id: string): Promise<void> {
@@ -262,6 +311,9 @@ export class PagosService {
     try {
       const [pago] = await runner.query('SELECT * FROM pagos_qr WHERE id=$1 FOR UPDATE', [id]) as PagoRow[];
       if (!pago || pago.estado !== 'PENDIENTE') { await runner.commitTransaction(); return; }
+      if (this.esSimulada(pago) && new Date(pago.vence_en).getTime() <= Date.now()) {
+        throw new BadRequestException('La orden simulada venció.');
+      }
       const items = await runner.query('SELECT * FROM pagos_qr_items WHERE id_pago=$1 ORDER BY id_producto', [id]) as ItemRow[];
       const reservados = new Map(items.map((item) => [item.id_producto, item.cantidad]));
       const precios = new Map(items.map((item) => [item.id_producto, Number(item.precio_unitario)]));

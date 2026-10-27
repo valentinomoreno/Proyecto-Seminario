@@ -91,8 +91,9 @@ describe('Alertas, dashboard e importación masiva (e2e)', () => {
     expect(alertas.body.productos).toEqual(expect.arrayContaining([
       expect.objectContaining({ idProducto, cantidadSugerida: 1 }),
     ]));
-    expect(alertas.body.productos.find((item: { idProducto: number }) => item.idProducto === idProducto))
-      .not.toHaveProperty('puntoPedido');
+    const productoAlerta = (alertas.body as { productos: Array<{ idProducto: number }> })
+      .productos.find((item) => item.idProducto === idProducto);
+    expect(productoAlerta).not.toHaveProperty('puntoPedido');
   });
 
   it('exporta el sugerido revisado como Excel', async () => {

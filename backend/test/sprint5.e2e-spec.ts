@@ -25,6 +25,7 @@ describe('Sprint 5 - QR y reportes (e2e)', () => {
   const idsMp: string[] = [];
   const ventasReporte: number[] = [];
   const ordenes = new Map<string, OrdenMp>();
+  const simuladorAnterior = process.env.MP_SIMULATOR_ENABLED;
   const clienteMp = {
     configured: () => true,
     crear: jest.fn((referencia: string, _clave: string, total: string) => {
@@ -46,6 +47,7 @@ describe('Sprint 5 - QR y reportes (e2e)', () => {
   };
 
   beforeAll(async () => {
+    process.env.MP_SIMULATOR_ENABLED = 'false';
     process.env.JWT_SECRET ??= 'test-secret-with-at-least-32-characters';
     process.env.MP_WEBHOOK_SECRET = 'sprint5-webhook-test-secret';
     const mod = await Test.createTestingModule({ imports: [AppModule] })
@@ -88,6 +90,8 @@ describe('Sprint 5 - QR y reportes (e2e)', () => {
     if (idProducto) await db.query('DELETE FROM productos WHERE id_producto=$1', [idProducto]);
     await app?.close();
     delete process.env.MP_WEBHOOK_SECRET;
+    if (simuladorAnterior === undefined) delete process.env.MP_SIMULATOR_ENABLED;
+    else process.env.MP_SIMULATOR_ENABLED = simuladorAnterior;
   });
 
   it('reserva stock e impide que otra venta use la unidad reservada', async () => {

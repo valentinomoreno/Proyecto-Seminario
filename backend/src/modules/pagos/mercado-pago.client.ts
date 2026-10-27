@@ -24,7 +24,7 @@ export class MercadoPagoClient {
   constructor(private readonly config: ConfigService) {}
 
   configured(): boolean {
-    return Boolean(this.config.get<string>('MP_ACCESS_TOKEN') && this.config.get<string>('MP_EXTERNAL_POS_ID'));
+    return Boolean(this.config.get<string>('MP_ACCESS_TOKEN')?.trim() && this.config.get<string>('MP_EXTERNAL_POS_ID')?.trim());
   }
 
   async crear(referencia: string, clave: string, monto: string): Promise<OrdenMp> {

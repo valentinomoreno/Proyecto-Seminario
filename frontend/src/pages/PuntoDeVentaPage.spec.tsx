@@ -10,7 +10,7 @@ import { PuntoDeVentaPage } from './PuntoDeVentaPage';
 const limpiarCarrito = vi.hoisted(() => vi.fn());
 vi.mock('../api/axios.instance', () => ({ api: { get: vi.fn() }, getApiErrorMessage: () => 'Error' }));
 vi.mock('../api/clientes.service', () => ({ clientesApi: { getClientes: vi.fn(), getCliente: vi.fn() } }));
-vi.mock('../api/pagos.service', () => ({ pagosApi: { crear: vi.fn(), estado: vi.fn(), estadoPorClave: vi.fn(), cancelar: vi.fn() } }));
+vi.mock('../api/pagos.service', () => ({ pagosApi: { crear: vi.fn(), estado: vi.fn(), estadoPorClave: vi.fn(), cancelar: vi.fn(), simularAcreditacion: vi.fn() } }));
 vi.mock('../api/ventas.service', () => ({ ventasApi: { registrarVenta: vi.fn(), getVenta: vi.fn() } }));
 vi.mock('../context/useCart', () => ({
   useCart: () => ({
@@ -34,11 +34,11 @@ describe('PuntoDeVentaPage - Mercado Pago QR', () => {
     }] } as Awaited<ReturnType<typeof clientesApi.getClientes>>);
     vi.mocked(pagosApi.crear).mockResolvedValue({
       id: '11111111-1111-4111-8111-111111111111', estado: 'PENDIENTE', qrData: 'codigo-qr',
-      monto: 1200, venceEn: '2026-10-27T18:00:00Z', idVenta: null, error: null, reservaActiva: true,
+      monto: 1200, venceEn: '2026-10-27T18:00:00Z', idVenta: null, error: null, reservaActiva: true, simulado: false,
     });
     vi.mocked(pagosApi.estado).mockResolvedValue({
       id: '11111111-1111-4111-8111-111111111111', estado: 'PENDIENTE', qrData: 'codigo-qr',
-      monto: 1200, venceEn: '2026-10-27T18:00:00Z', idVenta: null, error: null, reservaActiva: true,
+      monto: 1200, venceEn: '2026-10-27T18:00:00Z', idVenta: null, error: null, reservaActiva: true, simulado: false,
     });
   });
 
@@ -54,5 +54,24 @@ describe('PuntoDeVentaPage - Mercado Pago QR', () => {
     expect(screen.getByRole('dialog', { name: 'Cobro Mercado Pago QR' })).toBeInTheDocument();
     expect(ventasApi.registrarVenta).not.toHaveBeenCalled();
     expect(sessionStorage.getItem('autopartes_qr_activo')).toBe('11111111-1111-4111-8111-111111111111');
+  });
+
+  it('identifica el QR ficticio y ofrece acreditar la prueba localmente', async () => {
+    const orden = { id: '11111111-1111-4111-8111-111111111111', estado: 'PENDIENTE' as const,
+      qrData: 'SIMULACION-QR:11111111-1111-4111-8111-111111111111', monto: 1200,
+      venceEn: '2026-10-27T18:00:00Z', idVenta: null, error: null, reservaActiva: true, simulado: true };
+    vi.mocked(pagosApi.crear).mockResolvedValue(orden);
+    vi.mocked(pagosApi.estado).mockResolvedValue(orden);
+    vi.mocked(pagosApi.simularAcreditacion).mockResolvedValue(orden);
+    const user = userEvent.setup();
+    render(<PuntoDeVentaPage />);
+    await screen.findByText(/Cliente de prueba/);
+    await user.selectOptions(screen.getByLabelText('MÉTODO DE COBRO'), 'MERCADO_PAGO');
+    await user.click(screen.getByRole('button', { name: /Generar QR de cobro/i }));
+    await user.click(screen.getByRole('button', { name: 'Generar QR' }));
+    expect(await screen.findByText(/Este QR es ficticio/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Simular acreditación' }));
+    expect(pagosApi.simularAcreditacion).toHaveBeenCalledWith(orden.id);
+    expect(ventasApi.registrarVenta).not.toHaveBeenCalled();
   });
 });

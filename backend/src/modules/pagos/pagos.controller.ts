@@ -40,6 +40,13 @@ export class PagosController {
     return this.pagos.cancelar(id, req.user as UsuarioAutenticado);
   }
 
+  @Post('mercado-pago/ordenes/:id/simular-acreditacion')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(NombreRol.ADMINISTRADOR, NombreRol.EMPLEADO_VENTA)
+  simularAcreditacion(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
+    return this.pagos.simularAcreditacion(id, req.user as UsuarioAutenticado);
+  }
+
   @Post('webhook')
   @HttpCode(200)
   async webhook(@Req() req: Request, @Body() body: { id?: string; type?: string; data?: { id?: string } }) {

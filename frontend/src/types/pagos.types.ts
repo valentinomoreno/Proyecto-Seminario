@@ -7,4 +7,5 @@ export interface OrdenQr {
   idVenta: number | null;
   error: string | null;
   reservaActiva: boolean;
+  simulado: boolean;
 }

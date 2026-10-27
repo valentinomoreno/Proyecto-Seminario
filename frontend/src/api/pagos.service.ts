@@ -20,4 +20,8 @@ export const pagosApi = {
     const { data } = await api.post<OrdenQr>(`/pagos/mercado-pago/ordenes/${id}/cancelar`);
     return data;
   },
+  async simularAcreditacion(id: string): Promise<OrdenQr> {
+    const { data } = await api.post<OrdenQr>(`/pagos/mercado-pago/ordenes/${id}/simular-acreditacion`);
+    return data;
+  },
 };

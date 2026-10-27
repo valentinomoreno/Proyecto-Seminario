@@ -21,6 +21,22 @@ La API queda disponible en `http://localhost:3000`, el frontend en `http://local
 
 Si el puerto 5432 ya está ocupado, defina el mismo puerto alternativo en `POSTGRES_PORT` y `DB_PORT` (por ejemplo, `55432`) antes de levantar el contenedor.
 
+## Configurar Mercado Pago QR
+
+El cobro QR requiere estos tres valores en el `.env` de la raíz del proyecto:
+
+```dotenv
+MP_ACCESS_TOKEN=valor_de_la_credencial_de_prueba_o_produccion
+MP_EXTERNAL_POS_ID=identificador_externo_de_la_caja
+MP_WEBHOOK_SECRET=clave_secreta_de_webhooks
+```
+
+El Access Token se obtiene en las credenciales de la aplicación de Mercado Pago; la sucursal y la caja deben estar creadas y el `MP_EXTERNAL_POS_ID` debe corresponder a esa caja. En la configuración de Webhooks de la misma aplicación, registrar el evento de órdenes con una URL HTTPS pública terminada en `/pagos/webhook` y copiar allí la clave secreta. `localhost` no puede recibir esas notificaciones desde Mercado Pago. Reiniciar `npm start` después de editar `.env`. Nunca colocar estas claves en `VITE_` ni subir `.env` al repositorio.
+
+Consultar la [guía oficial de Orders QR](https://www.mercadopago.com.ar/developers/es/docs/qr-code/payment-processing) y la [configuración de notificaciones](https://www.mercadopago.com.ar/developers/es/docs/qr-code/notifications).
+
+Para probar el flujo **sin usar Mercado Pago**, definir `MP_SIMULATOR_ENABLED=true` en el `.env` de la raíz y reiniciar el backend. El POS mostrará un QR ficticio y un botón **Simular acreditación**. Esta opción solo funciona fuera de producción y no realiza llamadas a Mercado Pago. La prueba sí registra una venta, un cobro y un comprobante internos y descuenta stock en la base local; use una base de desarrollo y cancele las órdenes de prueba que no quiera completar. Para volver a cobros reales, establecer `MP_SIMULATOR_ENABLED=false` y configurar las tres variables anteriores.
+
 ## Comandos
 
 ```powershell

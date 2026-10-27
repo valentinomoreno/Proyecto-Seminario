@@ -56,6 +56,7 @@ export function PuntoDeVentaPage() {
   const [confirmacionVisible, setConfirmacionVisible] = useState(false);
   const [ordenQr, setOrdenQr] = useState<OrdenQr | null>(null);
   const [cancelandoQr, setCancelandoQr] = useState(false);
+  const [aprobandoQr, setAprobandoQr] = useState(false);
 
   useEffect(() => {
     const id = sessionStorage.getItem('autopartes_qr_activo');
@@ -643,7 +644,21 @@ export function PuntoDeVentaPage() {
         onConfirm={() => void handleConfirmarVenta()}
       />
 
-      {ordenQr && <ModalPagoQr orden={ordenQr} cancelando={cancelandoQr} onCancelar={() => {
+      {ordenQr && <ModalPagoQr orden={ordenQr} cancelando={cancelandoQr} aprobando={aprobandoQr} onSimularAcreditacion={() => {
+        setAprobandoQr(true);
+        void pagosApi.simularAcreditacion(ordenQr.id).then(async (orden) => {
+          setOrdenQr(orden);
+          if (orden.estado === 'APROBADO' && orden.idVenta) {
+            const venta = await ventasApi.getVenta(orden.idVenta);
+            sessionStorage.removeItem('autopartes_qr_activo');
+            setOrdenQr(null);
+            setVentaConfirmada(venta);
+            limpiarCarrito();
+          }
+        }).catch((error: unknown) => {
+          setOrdenQr((actual) => actual ? { ...actual, error: getApiErrorMessage(error) } : null);
+        }).finally(() => setAprobandoQr(false));
+      }} onCancelar={() => {
         setCancelandoQr(true);
         void pagosApi.cancelar(ordenQr.id).then((orden) => {
           setOrdenQr(orden);
