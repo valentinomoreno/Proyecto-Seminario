@@ -189,6 +189,15 @@ export function AppLayout() {
                 </li>
               )}
 
+              {esAdmin && <>
+                <li className="pc-item"><NavLink to="/reportes/ventas-mensuales" className={({ isActive }) => `pc-link ${isActive ? 'active' : ''}`} onClick={closeMobileNav}>
+                  <span className="pc-micon"><i className="ti ti-chart-bar" /></span><span className="pc-mtext">Ventas mensuales</span>
+                </NavLink></li>
+                <li className="pc-item"><NavLink to="/reportes/ranking-productos" className={({ isActive }) => `pc-link ${isActive ? 'active' : ''}`} onClick={closeMobileNav}>
+                  <span className="pc-micon"><i className="ti ti-chart-histogram" /></span><span className="pc-mtext">Ranking de productos</span>
+                </NavLink></li>
+              </>}
+
               {esAdmin && (
                 <li className="pc-item">
                   <NavLink

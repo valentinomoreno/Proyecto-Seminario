@@ -74,7 +74,7 @@ interface NumeroLeido {
 
 const COLUMNAS_REQUERIDAS = [
   'sku', 'nombre', 'descripcion', 'precio_costo', 'precio_venta', 'stock_inicial',
-  'stock_minimo', 'punto_pedido', 'categoria', 'marca', 'deposito', 'sector', 'estante',
+  'stock_minimo', 'categoria', 'marca', 'deposito', 'sector', 'estante',
 ];
 
 @Injectable()
@@ -168,8 +168,7 @@ export class ImportacionProductosService {
       ['Identificador', 'SKU es obligatorio, único y no se modifica. Si existe, se propondrá actualizar el mismo producto; si no existe, se creará uno nuevo.'],
       ['Previsualización', 'La carga primero clasifica las filas. La base de datos solo cambia después de confirmar la importación.'],
       ['Campos vacíos', 'En productos existentes, un campo vacío conserva el valor actual. En productos nuevos se validan los mismos campos obligatorios que en la carga manual.'],
-      ['Formatos', 'Precios: números con hasta 2 decimales. Stock, mínimo y punto de pedido: enteros mayores o iguales a 0.'],
-      ['Regla de stock', 'punto_pedido debe ser mayor o igual a stock_minimo.'],
+      ['Formatos', 'Precios: números con hasta 2 decimales. Stock y mínimo: enteros mayores o iguales a 0.'],
       ['Clasificación', 'Categoría y marca deben existir y estar asociadas. Consulte la hoja Referencias.'],
       ['Ubicación', 'La combinación depósito, sector y estante debe existir. Consulte la hoja Referencias.'],
       ['Límite', 'Máximo 2000 productos y 5 MB por archivo. Formatos admitidos: XLSX y CSV.'],
@@ -188,7 +187,6 @@ export class ImportacionProductosService {
       { header: 'precio_venta', key: 'precioVenta', width: 16 },
       { header: 'stock_inicial', key: 'stock', width: 16 },
       { header: 'stock_minimo', key: 'minimo', width: 16 },
-      { header: 'punto_pedido', key: 'pedido', width: 16 },
       { header: 'categoria', key: 'categoria', width: 24 },
       { header: 'marca', key: 'marca', width: 22 },
       { header: 'deposito', key: 'deposito', width: 20 },
@@ -199,10 +197,10 @@ export class ImportacionProductosService {
     encabezado.font = { bold: true, color: { argb: 'FFFFFFFF' } };
     encabezado.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1677FF' } };
     hoja.views = [{ state: 'frozen', ySplit: 1 }];
-    hoja.autoFilter = 'A1:M1';
+    hoja.autoFilter = 'A1:L1';
     hoja.getColumn('precioCosto').numFmt = '#,##0.00';
     hoja.getColumn('precioVenta').numFmt = '#,##0.00';
-    ['stock', 'minimo', 'pedido'].forEach((columna) => { hoja.getColumn(columna).numFmt = '0'; });
+    ['stock', 'minimo'].forEach((columna) => { hoja.getColumn(columna).numFmt = '0'; });
 
     const referencias = workbook.addWorksheet('Referencias');
     referencias.columns = [
@@ -235,14 +233,14 @@ export class ImportacionProductosService {
     referencias.views = [{ state: 'frozen', ySplit: 1 }];
     referencias.autoFilter = 'A1:G1';
 
-    this.agregarLista(hoja, 'I', 'A', nombresCategorias.length);
-    this.agregarLista(hoja, 'J', 'B', nombresMarcas.length);
-    this.agregarLista(hoja, 'K', 'C', nombresDepositos.length);
-    this.agregarLista(hoja, 'L', 'D', nombresSectores.length);
-    this.agregarLista(hoja, 'M', 'E', codigosEstantes.length);
+    this.agregarLista(hoja, 'H', 'A', nombresCategorias.length);
+    this.agregarLista(hoja, 'I', 'B', nombresMarcas.length);
+    this.agregarLista(hoja, 'J', 'C', nombresDepositos.length);
+    this.agregarLista(hoja, 'K', 'D', nombresSectores.length);
+    this.agregarLista(hoja, 'L', 'E', codigosEstantes.length);
     this.agregarValidacion(hoja, 'D', { type: 'decimal', operator: 'greaterThanOrEqual', formulae: [0], allowBlank: true, showErrorMessage: true, error: 'Ingrese un costo mayor o igual a 0.' });
     this.agregarValidacion(hoja, 'E', { type: 'decimal', operator: 'greaterThan', formulae: [0], allowBlank: true, showErrorMessage: true, error: 'Ingrese un precio mayor a 0.' });
-    ['F', 'G', 'H'].forEach((columna) => this.agregarValidacion(hoja, columna, {
+    ['F', 'G'].forEach((columna) => this.agregarValidacion(hoja, columna, {
       type: 'whole', operator: 'greaterThanOrEqual', formulae: [0], allowBlank: true,
       showErrorMessage: true, error: 'Ingrese un número entero mayor o igual a 0.',
     }));
@@ -255,7 +253,7 @@ export class ImportacionProductosService {
     ejemplo.addRow({
       sku: 'REP-EJEMPLO-001', nombre: 'Filtro de aceite de ejemplo',
       descripcion: 'Esta fila es demostrativa y no se importa.', precioCosto: 6500, precioVenta: 9900,
-      stock: 10, minimo: 3, pedido: 12, categoria: categoriaEjemplo?.nombre ?? 'Categoría existente',
+      stock: 10, minimo: 3, categoria: categoriaEjemplo?.nombre ?? 'Categoría existente',
       marca: marcaEjemplo?.nombre ?? 'Marca habilitada', deposito: estanteEjemplo?.sector.deposito.nombre ?? 'Depósito existente',
       sector: estanteEjemplo?.sector.nombre ?? 'Sector existente', estante: estanteEjemplo?.codigo ?? 'Estante existente',
     });
@@ -344,15 +342,11 @@ export class ImportacionProductosService {
     const precio = this.decimal(datos.precio_venta);
     const stock = this.entero(datos.stock_inicial);
     const minimo = this.entero(datos.stock_minimo);
-    const pedido = this.entero(datos.punto_pedido);
     if (costo.presente && (costo.valor === null || costo.valor < 0)) errores.push('precio_costo debe ser un número mayor o igual a 0.');
     if (!precio.presente || precio.valor === null || precio.valor <= 0) errores.push('precio_venta debe ser un número mayor a 0.');
     if (!stock.presente || stock.valor === null || stock.valor < 0) errores.push('stock_inicial debe ser un entero mayor o igual a 0.');
     if (minimo.presente && (minimo.valor === null || minimo.valor < 0)) errores.push('stock_minimo debe ser un entero mayor o igual a 0.');
-    if (pedido.presente && (pedido.valor === null || pedido.valor < 0)) errores.push('punto_pedido debe ser un entero mayor o igual a 0.');
     const stockMinimo = minimo.presente ? minimo.valor : 0;
-    const puntoPedido = pedido.presente ? pedido.valor : 0;
-    if (stockMinimo !== null && puntoPedido !== null && puntoPedido < stockMinimo) errores.push('punto_pedido debe ser mayor o igual a stock_minimo.');
     const categoria = this.buscarCategoria(categorias, datos.categoria);
     if (!categoria) errores.push(`Categoría inexistente o inactiva: ${datos.categoria || '(vacía)'}.`);
     const marca = this.buscarMarca(categoria, datos.marca);
@@ -360,12 +354,12 @@ export class ImportacionProductosService {
     const estante = this.buscarEstante(estantes, datos.deposito, datos.sector, datos.estante);
     if (!estante) errores.push('No existe la combinación depósito/sector/estante indicada.');
     if (errores.length || precio.valor === null || stock.valor === null || stockMinimo === null
-      || puntoPedido === null || !categoria || !marca || !estante) return this.filaError(fila, sku, nombre, errores, datos);
+      || !categoria || !marca || !estante) return this.filaError(fila, sku, nombre, errores, datos);
     return {
       fila, sku, producto: nombre, estado: 'NUEVO', cambios: [], errores: [], datos: { ...datos },
       nuevo: {
         sku, nombre, descripcion, precioCosto: costo.presente ? costo.valor : null,
-        precioUnitario: precio.valor, stock: stock.valor, stockMinimo, puntoPedido,
+        precioUnitario: precio.valor, stock: stock.valor, stockMinimo,
         categoria, marca, estante, imagenUrl: null,
       },
     };
@@ -387,7 +381,6 @@ export class ImportacionProductosService {
     const precio = this.decimal(datos.precio_venta);
     const stock = this.entero(datos.stock_inicial);
     const minimo = this.entero(datos.stock_minimo);
-    const pedido = this.entero(datos.punto_pedido);
     if (costo.presente && (costo.valor === null || costo.valor < 0)) errores.push('precio_costo debe ser un número mayor o igual a 0.');
     else if (costo.presente) this.agregarCambio(cambios, actualizacion, 'precioCosto', producto.precioCosto, costo.valor);
     if (precio.presente && (precio.valor === null || precio.valor <= 0)) errores.push('precio_venta debe ser un número mayor a 0.');
@@ -396,11 +389,6 @@ export class ImportacionProductosService {
     else if (stock.presente) this.agregarCambio(cambios, actualizacion, 'stock', producto.stock, stock.valor);
     if (minimo.presente && (minimo.valor === null || minimo.valor < 0)) errores.push('stock_minimo debe ser un entero mayor o igual a 0.');
     else if (minimo.presente) this.agregarCambio(cambios, actualizacion, 'stockMinimo', producto.stockMinimo, minimo.valor);
-    if (pedido.presente && (pedido.valor === null || pedido.valor < 0)) errores.push('punto_pedido debe ser un entero mayor o igual a 0.');
-    else if (pedido.presente) this.agregarCambio(cambios, actualizacion, 'puntoPedido', producto.puntoPedido, pedido.valor);
-    const stockMinimoFinal = minimo.presente && minimo.valor !== null ? minimo.valor : producto.stockMinimo;
-    const puntoPedidoFinal = pedido.presente && pedido.valor !== null ? pedido.valor : producto.puntoPedido;
-    if (puntoPedidoFinal < stockMinimoFinal) errores.push('punto_pedido debe ser mayor o igual a stock_minimo.');
 
     const categoriaActual = categorias.find((item) => item.idCategoria === producto.categoria.idCategoria);
     const categoria = datos.categoria?.trim() ? this.buscarCategoria(categorias, datos.categoria) : categoriaActual;
@@ -503,7 +491,7 @@ export class ImportacionProductosService {
     hoja.eachRow((row, numero) => {
       if (numero === 1) return;
       const datos: FilaCruda = {};
-      headers.forEach((header, column) => { if (header) datos[header] = row.getCell(column).text.trim(); });
+      headers.forEach((header, column) => { if (COLUMNAS_REQUERIDAS.includes(header)) datos[header] = row.getCell(column).text.trim(); });
       if (Object.values(datos).some((valor) => valor !== '')) filas.push({ numero, datos });
     });
     return { encabezados: headers.filter(Boolean), filas };

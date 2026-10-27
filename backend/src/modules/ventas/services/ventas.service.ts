@@ -12,6 +12,7 @@ import { CreateVentaDto } from '../dto/create-venta.dto';
 import { QueryVentasDto } from '../dto/query-ventas.dto';
 import { Venta } from '../entities/venta.entity';
 import { ModalidadPago } from '../enums/modalidad-pago.enum';
+import { MetodoCobro } from '../enums/metodo-cobro.enum';
 import {
   IVentasRepository,
   VENTAS_REPOSITORY,
@@ -43,6 +44,9 @@ export class VentasService {
   }
 
   async registrarVenta(idUsuario: number, dto: CreateVentaDto): Promise<Venta> {
+    if (dto.metodoCobro === MetodoCobro.MERCADO_PAGO) {
+      throw new BadRequestException('Mercado Pago requiere iniciar una orden QR desde el punto de venta.');
+    }
     const cliente = await this.clientesRepository.findById(dto.idCliente);
     if (!cliente) {
       throw new NotFoundException(`El cliente con ID ${dto.idCliente} no existe.`);

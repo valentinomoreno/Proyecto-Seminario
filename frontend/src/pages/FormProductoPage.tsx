@@ -16,7 +16,6 @@ interface FormState {
   descripcion: string;
   stock: string;
   stockMinimo: string;
-  puntoPedido: string;
   precioUnitario: string;
   precioCosto: string;
   imagenUrl: string;
@@ -32,7 +31,6 @@ const initialForm: FormState = {
   descripcion: '',
   stock: '0',
   stockMinimo: '0',
-  puntoPedido: '0',
   precioUnitario: '',
   precioCosto: '',
   imagenUrl: '',
@@ -90,7 +88,6 @@ export function FormProductoPage() {
             descripcion: producto.descripcion ?? '',
             stock: String(producto.stock),
             stockMinimo: String(producto.stockMinimo),
-            puntoPedido: String(producto.puntoPedido),
             precioUnitario: String(producto.precioUnitario),
             precioCosto: producto.precioCosto === null ? '' : String(producto.precioCosto),
             imagenUrl: producto.imagenUrl ?? '',
@@ -179,7 +176,6 @@ export function FormProductoPage() {
       descripcion: form.descripcion.trim() || null,
       stock: Number(form.stock),
       stockMinimo: Number(form.stockMinimo),
-      puntoPedido: Number(form.puntoPedido),
       precioUnitario: Number(form.precioUnitario),
       precioCosto: form.precioCosto === '' ? null : Number(form.precioCosto),
       imagenUrl: form.imagenUrl.trim() || null,
@@ -356,7 +352,7 @@ export function FormProductoPage() {
               </div>
               <div className="card-body p-4">
                 <div className="row g-3">
-                  <div className="col-md-4">
+                  <div className="col-md-6">
                     <label className="form-label fw-semibold" htmlFor="input-stock">
                       Stock actual (unidades) <span className="text-danger">*</span>
                     </label>
@@ -375,7 +371,7 @@ export function FormProductoPage() {
                     </div>
                   </div>
 
-                  <div className="col-md-4">
+                  <div className="col-md-6">
                     <label className="form-label fw-semibold" htmlFor="input-stock-minimo">
                       Stock mínimo <span className="text-danger">*</span>
                     </label>
@@ -389,23 +385,6 @@ export function FormProductoPage() {
                       onChange={(e) => update('stockMinimo', e.target.value)}
                       required
                     />
-                  </div>
-
-                  <div className="col-md-4">
-                    <label className="form-label fw-semibold" htmlFor="input-punto-pedido">
-                      Punto de pedido <span className="text-danger">*</span>
-                    </label>
-                    <input
-                      id="input-punto-pedido"
-                      type="number"
-                      min={form.stockMinimo || '0'}
-                      step="1"
-                      className="form-control"
-                      value={form.puntoPedido}
-                      onChange={(e) => update('puntoPedido', e.target.value)}
-                      required
-                    />
-                    <small className="text-muted">Debe ser igual o mayor al mínimo.</small>
                   </div>
 
                   <div className="col-md-6">

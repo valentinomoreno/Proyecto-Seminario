@@ -10,7 +10,6 @@ interface AlertaStock {
   marca: string;
   stockActual: number;
   stockMinimo: number;
-  puntoPedido: number;
   cantidadSugerida: number;
   precioCosto: number | null;
 }
@@ -103,10 +102,10 @@ export function AlertasStockPage() {
         <div className="card-body p-0">
           <div className="table-responsive">
             <table className="table table-hover align-middle mb-0">
-              <thead className="table-light"><tr><th className="text-center">Incluir</th><th>Producto</th><th>Categoría / Marca</th><th className="text-center">Stock</th><th className="text-center">Mínimo</th><th className="text-center">Objetivo</th><th style={{ width: '170px' }}>Cantidad a comprar</th><th className="text-end">Costo estimado</th></tr></thead>
+              <thead className="table-light"><tr><th className="text-center">Incluir</th><th>Producto</th><th>Categoría / Marca</th><th className="text-center">Stock</th><th className="text-center">Mínimo</th><th style={{ width: '170px' }}>Cantidad a comprar</th><th className="text-end">Costo estimado</th></tr></thead>
               <tbody>
-                {cargando && <tr><td colSpan={8} className="text-center py-5 text-muted"><span className="spinner-border spinner-border-sm me-2" />Evaluando inventario…</td></tr>}
-                {!cargando && respuesta?.productos.length === 0 && <tr><td colSpan={8} className="text-center py-5"><i className="ti ti-circle-check text-success fs-1 d-block mb-2" /><strong>Todo el inventario está por encima del mínimo.</strong><p className="text-muted mb-0">No es necesario generar una compra.</p></td></tr>}
+                {cargando && <tr><td colSpan={7} className="text-center py-5 text-muted"><span className="spinner-border spinner-border-sm me-2" />Evaluando inventario…</td></tr>}
+                {!cargando && respuesta?.productos.length === 0 && <tr><td colSpan={7} className="text-center py-5"><i className="ti ti-circle-check text-success fs-1 d-block mb-2" /><strong>Todo el inventario está por encima del mínimo.</strong><p className="text-muted mb-0">No es necesario generar una compra.</p></td></tr>}
                 {!cargando && respuesta?.productos.map((item) => {
                   const cantidad = cantidades[item.idProducto] ?? item.cantidadSugerida;
                   return <tr key={item.idProducto} className={seleccionados.has(item.idProducto) ? '' : 'opacity-50'}>
@@ -114,7 +113,7 @@ export function AlertasStockPage() {
                     <td><span className="badge bg-light-primary text-primary font-monospace">{item.sku}</span><div className="fw-bold mt-1">{item.nombre}</div></td>
                     <td>{item.categoria}<small className="d-block text-muted">{item.marca}</small></td>
                     <td className="text-center"><span className="badge bg-light-danger text-danger">{item.stockActual}</span></td>
-                    <td className="text-center">{item.stockMinimo}</td><td className="text-center">{item.puntoPedido}</td>
+                    <td className="text-center">{item.stockMinimo}</td>
                     <td><input type="number" min="1" step="1" className="form-control" value={cantidad} disabled={!seleccionados.has(item.idProducto)} onChange={(event) => setCantidades((actual) => ({ ...actual, [item.idProducto]: Number(event.target.value) }))} /></td>
                     <td className="text-end fw-semibold">{item.precioCosto === null ? <span className="text-muted">Sin costo</span> : moneda.format(item.precioCosto * cantidad)}</td>
                   </tr>;

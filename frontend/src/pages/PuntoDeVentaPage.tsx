@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { getApiErrorMessage } from '../api/axios.instance';
 import { clientesApi } from '../api/clientes.service';
 import { ventasApi } from '../api/ventas.service';
+import { pagosApi } from '../api/pagos.service';
+import { ModalPagoQr } from '../components/ModalPagoQr';
+import type { OrdenQr } from '../types/pagos.types';
 import { ModalComprobante } from '../components/ModalComprobante';
 import { ModalNuevoCliente } from '../components/ModalNuevoCliente';
 import { ConfirmActionModal } from '../components/ConfirmActionModal';
@@ -10,6 +13,7 @@ import type { Cliente } from '../types/cliente.types';
 import type { ProductoCatalogo } from '../types/producto.types';
 import type { MetodoCobro, ModalidadPago, VentaResponse } from '../types/venta.types';
 import { api } from '../api/axios.instance';
+import axios from 'axios';
 
 function documentoCliente(cliente: Cliente): string {
   return cliente.persona?.dni ?? cliente.empresa?.cuit ?? '';
@@ -50,6 +54,64 @@ export function PuntoDeVentaPage() {
   const [errorVenta, setErrorVenta] = useState('');
   const [ventaConfirmada, setVentaConfirmada] = useState<VentaResponse | null>(null);
   const [confirmacionVisible, setConfirmacionVisible] = useState(false);
+  const [ordenQr, setOrdenQr] = useState<OrdenQr | null>(null);
+  const [cancelandoQr, setCancelandoQr] = useState(false);
+
+  useEffect(() => {
+    const id = sessionStorage.getItem('autopartes_qr_activo');
+    const clave = sessionStorage.getItem('autopartes_qr_clave');
+    const solicitud = id ? pagosApi.estado(id) : clave ? pagosApi.estadoPorClave(clave) : null;
+    if (!solicitud) return;
+    let activo = true;
+    void solicitud.then(async (orden) => {
+      if (!activo) return;
+      sessionStorage.removeItem('autopartes_qr_clave');
+      if (orden.reservaActiva) {
+        sessionStorage.setItem('autopartes_qr_activo', orden.id);
+        setOrdenQr(orden);
+      } else if (orden.estado === 'APROBADO' && orden.idVenta) {
+        const venta = await ventasApi.getVenta(orden.idVenta);
+        if (activo) { setVentaConfirmada(venta); limpiarCarrito(); }
+        sessionStorage.removeItem('autopartes_qr_activo');
+      } else sessionStorage.removeItem('autopartes_qr_activo');
+    }).catch((error: unknown) => {
+      if (!activo) return;
+      if (!id && axios.isAxiosError(error) && error.response?.status === 404) {
+        sessionStorage.removeItem('autopartes_qr_clave');
+      }
+      setErrorVenta('No se pudo recuperar el estado del cobro QR. Intente nuevamente.');
+    });
+    return () => { activo = false; };
+  }, [limpiarCarrito]);
+
+  useEffect(() => {
+    if (!ordenQr?.id) return;
+    let activo = true;
+    const consultar = async () => {
+      try {
+        const orden = await pagosApi.estado(ordenQr.id);
+        if (!activo) return;
+        setOrdenQr(orden);
+        if (orden.estado === 'APROBADO' && orden.idVenta) {
+          const venta = await ventasApi.getVenta(orden.idVenta);
+          if (!activo) return;
+          sessionStorage.removeItem('autopartes_qr_activo');
+          setOrdenQr(null);
+          setVentaConfirmada(venta);
+          limpiarCarrito();
+        } else if (!orden.reservaActiva) {
+          sessionStorage.removeItem('autopartes_qr_activo');
+          setOrdenQr(null);
+          setErrorVenta(orden.estado === 'EXPIRADO' ? 'El QR venció. Puede iniciar otro cobro.' : orden.error ?? 'El cobro QR fue cancelado.');
+        }
+      } catch (error) {
+        if (activo) setErrorVenta(getApiErrorMessage(error));
+      }
+    };
+    void consultar();
+    const timer = window.setInterval(() => void consultar(), 3000);
+    return () => { activo = false; window.clearInterval(timer); };
+  }, [ordenQr?.id, limpiarCarrito]);
 
   // Búsqueda remota de clientes con debounce para no limitar el POS a la primera página.
   useEffect(() => {
@@ -80,7 +142,9 @@ export function PuntoDeVentaPage() {
         .get<{ data: ProductoCatalogo[] }>('/productos', {
           params: { buscar: busquedaRepuesto, limit: 12 },
         })
-        .then(({ data }) => setRepuestos(data.data))
+        .then(({ data }) => setRepuestos(data.data.map((producto) => ({
+          ...producto, stock: producto.stockDisponible ?? producto.stock,
+        }))))
         .catch((requestError: unknown) => setErrorVenta(getApiErrorMessage(requestError)))
         .finally(() => setCargandoRepuestos(false));
     }, 200);
@@ -117,6 +181,16 @@ export function PuntoDeVentaPage() {
     setProcesando(true);
 
     try {
+      if (modalidadPago === 'CONTADO' && metodoCobro === 'MERCADO_PAGO') {
+        const clave = sessionStorage.getItem('autopartes_qr_clave') ?? crypto.randomUUID();
+        sessionStorage.setItem('autopartes_qr_clave', clave);
+        const orden = await pagosApi.crear(clienteSeleccionado.idCliente,
+          items.map((i) => ({ idProducto: i.idProducto, cantidad: i.cantidad })), clave);
+        sessionStorage.setItem('autopartes_qr_activo', orden.id);
+        sessionStorage.removeItem('autopartes_qr_clave');
+        setOrdenQr(orden);
+        return;
+      }
       const response = await ventasApi.registrarVenta({
         idCliente: clienteSeleccionado.idCliente,
         modalidadPago,
@@ -135,6 +209,9 @@ export function PuntoDeVentaPage() {
         setClienteSeleccionado(actualizado);
       }).catch(() => undefined);
     } catch (err) {
+      if (axios.isAxiosError(err) && err.response && err.response.status < 500) {
+        sessionStorage.removeItem('autopartes_qr_clave');
+      }
       setErrorVenta(getApiErrorMessage(err));
     } finally {
       setProcesando(false);
@@ -300,7 +377,7 @@ export function PuntoDeVentaPage() {
               {/* SELECTOR DE CLIENTE */}
               <div className="mb-3">
                 <div className="d-flex justify-content-between align-items-center mb-1">
-                  <label className="form-label fw-bold small text-muted mb-0">CLIENTE *</label>
+                  <label htmlFor="pos-cliente" className="form-label fw-bold small text-muted mb-0">CLIENTE *</label>
                   <button
                     type="button"
                     className="btn btn-sm btn-link p-0 text-decoration-none fw-semibold"
@@ -325,6 +402,7 @@ export function PuntoDeVentaPage() {
                 </div>
 
                 <select
+                  id="pos-cliente"
                   className="form-select form-select-sm"
                   value={clienteSeleccionado?.idCliente ?? ''}
                   onChange={(e) => {
@@ -456,20 +534,21 @@ export function PuntoDeVentaPage() {
               {/* SI ES CONTADO: SELECTOR MÉTODO DE COBRO */}
               {modalidadPago === 'CONTADO' ? (
                 <div className="p-3 bg-light rounded border mb-3">
-                  <label className="form-label fw-bold small text-muted mb-1">MÉTODO DE COBRO</label>
+                  <label htmlFor="pos-metodo-cobro" className="form-label fw-bold small text-muted mb-1">MÉTODO DE COBRO</label>
                   <select
+                    id="pos-metodo-cobro"
                     className="form-select form-select-sm mb-2"
                     value={metodoCobro}
                     onChange={(e) => setMetodoCobro(e.target.value as MetodoCobro)}
                   >
                     <option value="EFECTIVO">Efectivo</option>
-                    <option value="MERCADO_PAGO">Mercado Pago</option>
+                    <option value="MERCADO_PAGO">Mercado Pago QR</option>
                     <option value="TARJETA_DEBITO">Tarjeta Débito</option>
                     <option value="TARJETA_CREDITO">Tarjeta Crédito</option>
                     <option value="TRANSFERENCIA">Transferencia Bancaria</option>
                   </select>
 
-                  {metodoCobro !== 'EFECTIVO' && (
+                  {metodoCobro !== 'EFECTIVO' && metodoCobro !== 'MERCADO_PAGO' && (
                     <input
                       type="text"
                       className="form-control form-control-sm"
@@ -478,6 +557,7 @@ export function PuntoDeVentaPage() {
                       onChange={(e) => setReferenciaPago(e.target.value)}
                     />
                   )}
+                  {metodoCobro === 'MERCADO_PAGO' && <small className="text-muted d-block mt-1">La venta se registra al acreditarse el QR.</small>}
                   <small className="text-muted d-block mt-1" style={{ fontSize: '0.75rem' }}>
                     Emite {tipoComprobante(clienteSeleccionado)}.
                   </small>
@@ -512,7 +592,7 @@ export function PuntoDeVentaPage() {
               <button
                 type="button"
                 className="btn btn-success btn-lg w-100 fw-bold d-flex justify-content-center align-items-center gap-2"
-                disabled={procesando || items.length === 0 || !clienteSeleccionado}
+                disabled={procesando || Boolean(ordenQr) || items.length === 0 || !clienteSeleccionado}
                 onClick={solicitarConfirmacionVenta}
               >
                 {procesando ? (
@@ -523,7 +603,7 @@ export function PuntoDeVentaPage() {
                 ) : (
                   <>
                     <i className="ti ti-check" />
-                    Confirmar y Facturar
+                    {metodoCobro === 'MERCADO_PAGO' && modalidadPago === 'CONTADO' ? 'Generar QR de cobro' : 'Confirmar y Facturar'}
                   </>
                 )}
               </button>
@@ -553,15 +633,27 @@ export function PuntoDeVentaPage() {
               <span>{modalidadPago === 'CUENTA_CORRIENTE' ? 'Cargo a cuenta corriente' : 'Total a cobrar'}</span>
               <strong>$ {total.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</strong>
             </div>
-            <small className="text-muted d-block mt-2">Una vez confirmada se descontará el stock y se emitirá el comprobante.</small>
+            <small className="text-muted d-block mt-2">{metodoCobro === 'MERCADO_PAGO' && modalidadPago === 'CONTADO' ? 'Se reservará el stock durante 15 minutos y se emitirá el comprobante al acreditarse el pago.' : 'Una vez confirmada se descontará el stock y se emitirá el comprobante.'}</small>
           </div>
         )}
-        confirmLabel="Sí, confirmar y facturar"
+        confirmLabel={metodoCobro === 'MERCADO_PAGO' && modalidadPago === 'CONTADO' ? 'Generar QR' : 'Sí, confirmar y facturar'}
         confirmVariant="success"
         processing={procesando}
         onCancel={() => setConfirmacionVisible(false)}
         onConfirm={() => void handleConfirmarVenta()}
       />
+
+      {ordenQr && <ModalPagoQr orden={ordenQr} cancelando={cancelandoQr} onCancelar={() => {
+        setCancelandoQr(true);
+        void pagosApi.cancelar(ordenQr.id).then((orden) => {
+          setOrdenQr(orden);
+          if (!orden.reservaActiva) {
+            sessionStorage.removeItem('autopartes_qr_activo');
+            setOrdenQr(null);
+          }
+        }).catch((error: unknown) => setErrorVenta(getApiErrorMessage(error)))
+          .finally(() => setCancelandoQr(false));
+      }} />}
 
       {/* MODAL COMPROBANTE GENERADO */}
       {ventaConfirmada && (

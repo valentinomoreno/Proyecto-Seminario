@@ -12,7 +12,6 @@ export interface AlertaStockResponse {
   marca: string;
   stockActual: number;
   stockMinimo: number;
-  puntoPedido: number;
   cantidadSugerida: number;
   precioCosto: number | null;
 }
@@ -56,7 +55,7 @@ export class AlertasStockService {
       pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1 },
     });
 
-    hoja.mergeCells('A1:I1');
+    hoja.mergeCells('A1:H1');
     const titulo = hoja.getCell('A1');
     titulo.value = 'SUGERIDO DE COMPRA AL PROVEEDOR';
     titulo.font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
@@ -64,7 +63,7 @@ export class AlertasStockService {
     titulo.alignment = { horizontal: 'center', vertical: 'middle' };
     hoja.getRow(1).height = 28;
 
-    hoja.mergeCells('A2:I2');
+    hoja.mergeCells('A2:H2');
     hoja.getCell('A2').value = `Generado: ${new Intl.DateTimeFormat('es-AR', {
       dateStyle: 'medium',
       timeStyle: 'short',
@@ -79,12 +78,11 @@ export class AlertasStockService {
       { key: 'marca', width: 20 },
       { key: 'stock', width: 13 },
       { key: 'minimo', width: 13 },
-      { key: 'pedido', width: 16 },
       { key: 'cantidad', width: 18 },
       { key: 'costo', width: 18 },
     ];
 
-    const encabezados = ['SKU', 'Producto', 'Categoría', 'Marca', 'Stock actual', 'Stock mínimo', 'Punto pedido', 'Cantidad a comprar', 'Costo estimado'];
+    const encabezados = ['SKU', 'Producto', 'Categoría', 'Marca', 'Stock actual', 'Stock mínimo', 'Cantidad a comprar', 'Costo estimado'];
     hoja.addRow([]);
     const header = hoja.addRow(encabezados);
     header.font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -100,19 +98,18 @@ export class AlertasStockService {
         producto.marca.nombre,
         producto.stock,
         producto.stockMinimo,
-        producto.puntoPedido,
         cantidad,
         costo,
       ]);
-      fila.getCell(9).numFmt = '$ #,##0.00';
+      fila.getCell(8).numFmt = '$ #,##0.00';
     }
 
-    const filaTotal = hoja.addRow(['', '', '', '', '', '', '', 'TOTAL ESTIMADO', {
-      formula: `SUM(I5:I${4 + items.length})`,
+    const filaTotal = hoja.addRow(['', '', '', '', '', '', 'TOTAL ESTIMADO', {
+      formula: `SUM(H5:H${4 + items.length})`,
     }]);
     filaTotal.font = { bold: true };
-    filaTotal.getCell(9).numFmt = '$ #,##0.00';
-    hoja.autoFilter = `A4:I${4 + items.length}`;
+    filaTotal.getCell(8).numFmt = '$ #,##0.00';
+    hoja.autoFilter = `A4:H${4 + items.length}`;
 
     const data = await workbook.xlsx.writeBuffer();
     return Buffer.from(data);
@@ -127,8 +124,7 @@ export class AlertasStockService {
       marca: producto.marca.nombre,
       stockActual: producto.stock,
       stockMinimo: producto.stockMinimo,
-      puntoPedido: producto.puntoPedido,
-      cantidadSugerida: Math.max(1, producto.puntoPedido - producto.stock),
+      cantidadSugerida: Math.max(1, producto.stockMinimo - producto.stock),
       precioCosto: producto.precioCosto,
     };
   }

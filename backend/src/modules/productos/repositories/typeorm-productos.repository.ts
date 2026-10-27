@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import { QueryProductosDto } from '../dto/producto.dto';
@@ -70,12 +70,15 @@ export class TypeOrmProductosRepository implements IProductosRepository {
     return this.ormRepository.create(data);
   }
 
-  async save(producto: Producto): Promise<Producto> {
+  async save(producto: Partial<Producto>): Promise<Producto> {
     return this.ormRepository.save(producto);
   }
 
   async softRemove(producto: Producto): Promise<Producto> {
-    return this.ormRepository.softRemove(producto);
+    const resultado = await this.ormRepository.createQueryBuilder().softDelete()
+      .where('id_producto = :id AND stock_reservado = 0', { id: producto.idProducto }).execute();
+    if (!resultado.affected) throw new BadRequestException('No se puede dar de baja un producto con stock reservado.');
+    return producto;
   }
 
   async generateNextSku(): Promise<string> {

@@ -15,7 +15,7 @@ Proyecto de Seminario Integrador (UTN). Los Sprint 1 a 3 implementan autenticaci
 3. Levantar PostgreSQL: `docker compose up -d db`.
 4. Crear el esquema: `npm run db:migration:run`.
 5. Cargar datos iniciales: `npm run db:seed`.
-6. Iniciar backend y frontend: `npm run dev`.
+6. Iniciar backend y frontend juntos desde la raíz: `npm start` (o `npm run dev`). Detener ambos con `Ctrl+C`.
 
 La API queda disponible en `http://localhost:3000`, el frontend en `http://localhost:5173` y el healthcheck en `GET /health`.
 
@@ -24,6 +24,7 @@ Si el puerto 5432 ya está ocupado, defina el mismo puerto alternativo en `POSTG
 ## Comandos
 
 ```powershell
+npm start                   # Inicia backend y frontend juntos
 npm run dev                 # Backend y frontend en modo desarrollo
 npm run build               # Compila ambos paquetes
 npm test                    # Pruebas unitarias y de componentes

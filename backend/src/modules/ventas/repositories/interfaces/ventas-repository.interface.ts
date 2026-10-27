@@ -2,6 +2,7 @@ import { QueryVentasDto } from '../../dto/query-ventas.dto';
 import { Venta } from '../../entities/venta.entity';
 import { MetodoCobro } from '../../enums/metodo-cobro.enum';
 import { ModalidadPago } from '../../enums/modalidad-pago.enum';
+import { QueryRunner } from 'typeorm';
 
 export const VENTAS_REPOSITORY = Symbol('VENTAS_REPOSITORY');
 
@@ -20,5 +21,5 @@ export interface IRegistroVentaDatos {
 export interface IVentasRepository {
   findAndCount(query: QueryVentasDto): Promise<[Venta[], number]>;
   findById(id: number): Promise<Venta | null>;
-  registrarVentaTransaccional(datos: IRegistroVentaDatos): Promise<Venta>;
+  registrarVentaTransaccional(datos: IRegistroVentaDatos, runner?: QueryRunner, reservados?: Map<number, number>, precios?: Map<number, number>): Promise<Venta>;
 }

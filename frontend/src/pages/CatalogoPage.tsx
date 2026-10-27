@@ -205,13 +205,11 @@ export function CatalogoPage() {
                         <span className={`badge ${
                           producto.stock <= producto.stockMinimo
                             ? 'bg-light-danger text-danger'
-                            : producto.stock <= producto.puntoPedido
-                            ? 'bg-light-warning text-warning'
                             : 'bg-light-success text-success'
                         }`}>
                           {producto.stock} unidades
                         </span>
-                        <small className="d-block text-muted mt-1">Mín. {producto.stockMinimo} · Pedido {producto.puntoPedido}</small>
+                        <small className="d-block text-muted mt-1">Mín. {producto.stockMinimo}</small>
                       </td>
                       <td className="fw-bold text-dark font-monospace">
                         $ {producto.precioUnitario.toLocaleString('es-AR', { minimumFractionDigits: 2 })}

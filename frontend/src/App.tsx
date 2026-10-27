@@ -18,6 +18,8 @@ import { DashboardPage } from './pages/DashboardPage';
 import { AlertasStockPage } from './pages/AlertasStockPage';
 import { UbicacionesPage } from './pages/UbicacionesPage';
 import { ImportarProductosPage } from './pages/ImportarProductosPage';
+import { ReportesVentasPage } from './pages/ReportesVentasPage';
+import { RankingProductosPage } from './pages/RankingProductosPage';
 
 import { useAuth } from './context/useAuth';
 
@@ -50,6 +52,8 @@ export default function App() {
             <Route path="/cuentas-corrientes/:idCliente" element={<DetalleDeudaPage />} />
             <Route element={<ProtectedRoute roles={['ADMINISTRADOR']} />}>
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/reportes/ventas-mensuales" element={<ReportesVentasPage />} />
+              <Route path="/reportes/ranking-productos" element={<RankingProductosPage />} />
               <Route path="/stock/alertas" element={<AlertasStockPage />} />
               <Route path="/productos/catalogos" element={<CatalogosProductoPage />} />
               <Route path="/productos/ubicaciones" element={<UbicacionesPage />} />

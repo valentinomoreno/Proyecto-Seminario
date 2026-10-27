@@ -51,15 +51,19 @@ describe('ImportacionProductosService', () => {
     const referencias = workbook.getWorksheet('Referencias');
     expect(productos?.getCell('A1').text).toBe('sku');
     expect(productos?.rowCount).toBe(2001);
-    expect(productos?.getCell('I2').dataValidation.type).toBe('list');
+    expect(productos?.getCell('H2').dataValidation.type).toBe('list');
+    expect(productos?.getRow(1).values).toEqual([
+      undefined, 'sku', 'nombre', 'descripcion', 'precio_costo', 'precio_venta', 'stock_inicial',
+      'stock_minimo', 'categoria', 'marca', 'deposito', 'sector', 'estante',
+    ]);
     expect(referencias?.getCell('A2').text).toBe('Filtros');
     expect(referencias?.getCell('G2').text).toContain('Depósito Principal → A → A-01');
   });
 
   it('previsualiza una fila inválida sin modificar la base de datos', async () => {
     const csv = [
-      'sku,nombre,descripcion,precio_costo,precio_venta,stock_inicial,stock_minimo,punto_pedido,categoria,marca,deposito,sector,estante',
-      'REP-001,Filtro premium,Prueba,1200,PRECIO_MAL,8,2,9,Filtros,Bosch,Depósito Principal,A,A-01',
+      'sku,nombre,descripcion,precio_costo,precio_venta,stock_inicial,stock_minimo,categoria,marca,deposito,sector,estante',
+      'REP-001,Filtro premium,Prueba,1200,PRECIO_MAL,8,2,Filtros,Bosch,Depósito Principal,A,A-01',
     ].join('\n');
 
     const resultado = await service.previsualizar({
@@ -84,15 +88,14 @@ describe('ImportacionProductosService', () => {
       precioUnitario: 2000,
       stock: 5,
       stockMinimo: 1,
-      puntoPedido: 2,
       categoria,
       marca,
       estante,
       fechaBaja: null,
     } as Producto]);
     const csv = [
-      'sku,nombre,descripcion,precio_costo,precio_venta,stock_inicial,stock_minimo,punto_pedido,categoria,marca,deposito,sector,estante',
-      'rep-001,,,,2500,,,,,,,,',
+      'sku,nombre,descripcion,precio_costo,precio_venta,stock_inicial,stock_minimo,categoria,marca,deposito,sector,estante',
+      'rep-001,,,,2500,,,,,,,',
     ].join('\n');
 
     const resultado = await service.previsualizar({

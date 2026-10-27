@@ -23,7 +23,6 @@ const ETIQUETAS_CAMPOS: Record<string, string> = {
   precioUnitario: 'Precio de venta',
   stock: 'Stock',
   stockMinimo: 'Stock mínimo',
-  puntoPedido: 'Punto de pedido',
   categoria: 'Categoría',
   marca: 'Marca',
   estante: 'Estante',

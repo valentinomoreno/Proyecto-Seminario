@@ -72,7 +72,6 @@ describe('Alertas, dashboard e importación masiva (e2e)', () => {
         nombre: `Alerta Stock E2E ${sufijo}`,
         stock: 2,
         stockMinimo: 3,
-        puntoPedido: 10,
         precioCosto: 1000,
         precioUnitario: 1800,
         categoriaId: referencia.id_categoria,
@@ -82,15 +81,18 @@ describe('Alertas, dashboard e importación masiva (e2e)', () => {
       .expect(201);
     idProducto = producto.body.idProducto as number;
     skuProducto = producto.body.sku as string;
-    expect(producto.body).toMatchObject({ stockMinimo: 3, puntoPedido: 10, precioCosto: 1000 });
+    expect(producto.body).toMatchObject({ stockMinimo: 3, precioCosto: 1000 });
+    expect(producto.body).not.toHaveProperty('puntoPedido');
 
     const alertas = await request(app.getHttpServer())
       .get('/stock/alertas')
       .auth(token, { type: 'bearer' })
       .expect(200);
     expect(alertas.body.productos).toEqual(expect.arrayContaining([
-      expect.objectContaining({ idProducto, cantidadSugerida: 8 }),
+      expect.objectContaining({ idProducto, cantidadSugerida: 1 }),
     ]));
+    expect(alertas.body.productos.find((item: { idProducto: number }) => item.idProducto === idProducto))
+      .not.toHaveProperty('puntoPedido');
   });
 
   it('exporta el sugerido revisado como Excel', async () => {
@@ -105,10 +107,10 @@ describe('Alertas, dashboard e importación masiva (e2e)', () => {
 
   it('previsualiza y confirma altas y actualizaciones por SKU sin duplicar productos', async () => {
     const csv = [
-      ['sku', 'nombre', 'descripcion', 'precio_costo', 'precio_venta', 'stock_inicial', 'stock_minimo', 'punto_pedido', 'categoria', 'marca', 'deposito', 'sector', 'estante'].join(','),
-      [skuProducto, '', '', '', '2100', '', '', '', '', '', '', '', ''].join(','),
-      [`E2E-${sufijo}`, `Importado E2E ${sufijo}`, 'Correcto', '1200', '2000', '8', '2', '9', referencia.categoria, referencia.marca, referencia.deposito, referencia.sector, referencia.estante].join(','),
-      [`E2E-ERR-${sufijo}`, `Inválido E2E ${sufijo}`, 'Precio incorrecto', '1200', 'NO_ES_PRECIO', '8', '2', '9', referencia.categoria, referencia.marca, referencia.deposito, referencia.sector, referencia.estante].join(','),
+      ['sku', 'nombre', 'descripcion', 'precio_costo', 'precio_venta', 'stock_inicial', 'stock_minimo', 'categoria', 'marca', 'deposito', 'sector', 'estante'].join(','),
+      [skuProducto, '', '', '', '2100', '', '', '', '', '', '', ''].join(','),
+      [`E2E-${sufijo}`, `Importado E2E ${sufijo}`, 'Correcto', '1200', '2000', '8', '2', referencia.categoria, referencia.marca, referencia.deposito, referencia.sector, referencia.estante].join(','),
+      [`E2E-ERR-${sufijo}`, `Inválido E2E ${sufijo}`, 'Precio incorrecto', '1200', 'NO_ES_PRECIO', '8', '2', referencia.categoria, referencia.marca, referencia.deposito, referencia.sector, referencia.estante].join(','),
     ].join('\n');
     const previsualizacion = await request(app.getHttpServer())
       .post('/productos/importacion/previsualizar')

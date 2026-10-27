@@ -8,7 +8,7 @@ export interface IProductosRepository {
   findById(id: number): Promise<Producto | null>;
   findBajoMinimo(): Promise<Producto[]>;
   create(data: Partial<Producto>): Producto;
-  save(producto: Producto): Promise<Producto>;
+  save(producto: Partial<Producto>): Promise<Producto>;
   softRemove(producto: Producto): Promise<Producto>;
   generateNextSku(): Promise<string>;
   countByCategoria(categoriaId: number): Promise<number>;

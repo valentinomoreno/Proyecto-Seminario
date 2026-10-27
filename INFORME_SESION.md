@@ -44,7 +44,7 @@ Para validar analíticamente el Dashboard de control se desarrolló un script de
   - **Operaciones Registradas**: `151` transacciones en el mes corriente.
   - **Distribución de Cobros**: Efectivo (39%), Cuenta Corriente (29%), Mercado Pago (24%), Otros (7%).
   - **Cuentas en Mora**: 299 clientes con saldo deudor en seguimiento.
-  - **Alertas de Stock**: 180 repuestos bajo nivel de punto de pedido.
+  - **Alertas de Stock**: 180 repuestos con stock igual o inferior al mínimo.
 
 ---
 

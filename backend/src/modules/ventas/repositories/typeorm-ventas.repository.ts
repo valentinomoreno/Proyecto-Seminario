@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Brackets, DataSource } from 'typeorm';
+import { Brackets, DataSource, QueryRunner } from 'typeorm';
 import { Cliente } from '../../clientes/entities/cliente.entity';
 import { CuentaCorriente } from '../../cuentas-corrientes/entities/cuenta-corriente.entity';
 import { MovimientoCtaCorriente } from '../../cuentas-corrientes/entities/movimiento-cta-corriente.entity';
@@ -61,10 +61,12 @@ export class TypeOrmVentasRepository implements IVentasRepository {
       .getOne();
   }
 
-  async registrarVentaTransaccional(datos: IRegistroVentaDatos): Promise<Venta> {
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
+  async registrarVentaTransaccional(datos: IRegistroVentaDatos, runner?: QueryRunner, reservados = new Map<number, number>(), precios = new Map<number, number>()): Promise<Venta> {
+    const queryRunner = runner ?? this.dataSource.createQueryRunner();
+    if (!runner) {
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+    }
 
     try {
       const items = [...datos.items].sort((a, b) => a.idProducto - b.idProducto);
@@ -90,6 +92,7 @@ export class TypeOrmVentasRepository implements IVentasRepository {
         .createQueryBuilder('producto')
         .setLock('pessimistic_write')
         .where('producto.idProducto IN (:...productIds)', { productIds })
+        .orderBy('producto.idProducto', 'ASC')
         .getMany();
       const productosPorId = new Map(productos.map((producto) => [producto.idProducto, producto]));
 
@@ -100,16 +103,17 @@ export class TypeOrmVentasRepository implements IVentasRepository {
             `El producto con ID ${item.idProducto} no existe o fue dado de baja.`,
           );
         }
-        if (producto.stock < item.cantidad) {
+        const reservadoPropio = reservados.get(item.idProducto) ?? 0;
+        if (producto.stock - producto.stockReservado + reservadoPropio < item.cantidad) {
           throw new BadRequestException(
-            `Stock insuficiente para "${producto.nombre}". Disponible: ${producto.stock}; solicitado: ${item.cantidad}.`,
+            `Stock insuficiente para "${producto.nombre}". Disponible: ${producto.stock - producto.stockReservado}; solicitado: ${item.cantidad}.`,
           );
         }
       }
 
       const totalCentavos = items.reduce((total, item) => {
         const producto = productosPorId.get(item.idProducto)!;
-        return total + Math.round(Number(producto.precioUnitario) * 100) * item.cantidad;
+        return total + Math.round(Number(precios.get(item.idProducto) ?? producto.precioUnitario) * 100) * item.cantidad;
       }, 0);
       const total = totalCentavos / 100;
 
@@ -170,15 +174,17 @@ export class TypeOrmVentasRepository implements IVentasRepository {
         const producto = productosPorId.get(item.idProducto)!;
         const stockAnterior = producto.stock;
         producto.stock -= item.cantidad;
+        producto.stockReservado -= reservados.get(item.idProducto) ?? 0;
         await queryRunner.manager.getRepository(Producto).save(producto);
 
-        const subtotalLinea = Math.round(Number(producto.precioUnitario) * 100) * item.cantidad / 100;
+        const precioUnitario = precios.get(item.idProducto) ?? Number(producto.precioUnitario);
+        const subtotalLinea = Math.round(precioUnitario * 100) * item.cantidad / 100;
         await queryRunner.manager.getRepository(DetalleVenta).save(
           queryRunner.manager.getRepository(DetalleVenta).create({
             venta,
             producto,
             cantidad: item.cantidad,
-            precioUnitario: producto.precioUnitario,
+            precioUnitario,
             subtotal: subtotalLinea,
           }),
         );
@@ -257,15 +263,18 @@ export class TypeOrmVentasRepository implements IVentasRepository {
         );
       }
 
-      await queryRunner.commitTransaction();
-      const ventaCompleta = await this.findById(venta.idVenta);
-      if (!ventaCompleta) throw new Error('No se pudo recuperar la venta registrada.');
-      return ventaCompleta;
+      if (!runner) {
+        await queryRunner.commitTransaction();
+        const ventaCompleta = await this.findById(venta.idVenta);
+        if (!ventaCompleta) throw new Error('No se pudo recuperar la venta registrada.');
+        return ventaCompleta;
+      }
+      return venta;
     } catch (error) {
-      if (queryRunner.isTransactionActive) await queryRunner.rollbackTransaction();
+      if (!runner && queryRunner.isTransactionActive) await queryRunner.rollbackTransaction();
       throw error;
     } finally {
-      await queryRunner.release();
+      if (!runner) await queryRunner.release();
     }
   }
 

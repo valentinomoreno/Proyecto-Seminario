@@ -21,11 +21,6 @@ export class CreateProductoDto {
   @Min(0)
   stockMinimo?: number = 0;
 
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  puntoPedido?: number = 0;
-
   @IsNumber({ maxDecimalPlaces: 2 })
   @IsPositive()
   precioUnitario: number;
@@ -58,7 +53,6 @@ export class UpdateProductoDto {
   @IsOptional() @IsString() @MaxLength(2000) descripcion?: string | null;
   @IsOptional() @IsInt() @Min(0) stock?: number;
   @IsOptional() @IsInt() @Min(0) stockMinimo?: number;
-  @IsOptional() @IsInt() @Min(0) puntoPedido?: number;
   @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @IsPositive() precioUnitario?: number;
   @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) precioCosto?: number | null;
   @IsOptional() @IsString() @MaxLength(255) imagenUrl?: string | null;

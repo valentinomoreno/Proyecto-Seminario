@@ -14,6 +14,8 @@ import { ProductosModule } from './modules/productos/productos.module';
 import { UsuariosModule } from './modules/usuarios/usuarios.module';
 import { VentasModule } from './modules/ventas/ventas.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { PagosModule } from './modules/pagos/pagos.module';
+import { ReportesModule } from './modules/reportes/reportes.module';
 
 @Module({
   imports: [
@@ -33,6 +35,8 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     DevolucionesModule,
     NotificacionesModule,
     DashboardModule,
+    PagosModule,
+    ReportesModule,
   ],
   controllers: [AppController],
 })

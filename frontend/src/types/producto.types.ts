@@ -37,7 +37,6 @@ export interface Producto {
   descripcion: string | null;
   stock: number;
   stockMinimo: number;
-  puntoPedido: number;
   precioUnitario: number;
   precioCosto: number | null;
   imagenUrl?: string | null;
@@ -60,7 +59,6 @@ export interface ProductoPayload {
   descripcion?: string | null;
   stock: number;
   stockMinimo: number;
-  puntoPedido: number;
   precioUnitario: number;
   precioCosto?: number | null;
   imagenUrl?: string | null;
@@ -76,8 +74,8 @@ export interface ProductoCatalogo {
   descripcion: string | null;
   precioUnitario: number;
   stock: number;
+  stockDisponible?: number;
   stockMinimo?: number;
-  puntoPedido?: number;
   imagenUrl?: string | null;
   categoria?: { idCategoria: number; nombre: string };
   marca?: { idMarca: number; nombre: string };
@@ -91,7 +89,6 @@ export interface FilaImportacionProducto {
   precio_venta: string;
   stock_inicial: string;
   stock_minimo: string;
-  punto_pedido: string;
   categoria: string;
   marca: string;
   deposito: string;
